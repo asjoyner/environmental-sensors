@@ -5,6 +5,19 @@ esphome:
     - priority: 600
       then:
         - switch.turn_on: i2c_power
+    # work around https://github.com/esphome/esphome/issues/11263
+    - priority: 150  # Early, post-RMT init
+      then:
+        - switch.turn_on: i2c_power  # Powers NeoPixel
+        - delay: 50ms  # Regulator settle
+        - lambda:  |-
+            auto call = id(neopixel).make_call();
+            call.set_state(true);
+            call.set_red(0.0f);
+            call.set_green(0.2f);
+            call.set_blue(0.0f);
+            call.set_brightness(1.0f);
+            call.perform();
 
 esp32:
   board: adafruit_feather_esp32_v2
@@ -78,13 +91,22 @@ font:
 
 light:
   - platform: esp32_rmt_led_strip  # New component
-    pin: 0  # Same GPIO
+    pin: 0
     num_leds: 1
-    rgb_order: GRB  # WS281x standard (adjust if needed)
-    chipset: WS2812  # Or WS2811 if exact match
+    rgb_order: GRB
+    chipset: WS2812
+    use_psram: false
     name: "NeoPixel"
+    id: "neopixel"
+    restore_mode: RESTORE_DEFAULT_ON
     initial_state:
       state: true
-      red: 0.0  # Use 0-1.0 scale
-      green: 1.0
+      red: 0.0
+      green: 0.1
       blue: 0.0
+
+  - platform: status_led
+    name: "Status Light"
+    pin: GPIO13
+    initial_state:
+      state: true
