@@ -13,20 +13,21 @@ var configs = []Sensor{
 }
 
 type Sensor struct {
-	Name string
+	Name      string
 	IpAddress string
-	Secrets Secrets
+	Secrets   Secrets
 }
 
 type Secrets struct {
-	EspAPIKey string
-	OtaPassword string
-	WifiSSID string
+	EspAPIKey    string
+	OtaPassword  string
+	WifiSSID     string
 	WifiPassword string
 }
 
 //go:embed template.yaml
 var espHomeTemplate string
+
 func main() {
 	// instantiate template
 	var tmpl = template.Must(template.New("espconf").Parse(espHomeTemplate))
@@ -35,6 +36,7 @@ func main() {
 		log.Fatalf("Usage: %s <deviceName> </dev/usbttyS0,COM3,192.168.1.100,foo.local>\n", os.Args[0])
 	}
 	deviceName := os.Args[1]
+	target := os.Args[2]
 
 	// pick device from config
 	var deviceConfig *Sensor
@@ -62,7 +64,7 @@ func main() {
 	}
 	f.Close()
 
-	cmd := exec.Command("esphome", "upload", "--device", f.Name())
+	cmd := exec.Command("esphome", "upload", "--device", target, f.Name())
 	if output, err := cmd.CombinedOutput(); err != nil {
 		log.Println(string(output))
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -70,5 +72,5 @@ func main() {
 		} else {
 			log.Fatal("failed to execute esphome: ", exitErr.Stderr)
 		}
-	}		
+	}
 }

@@ -6,13 +6,13 @@ var secrets = Secrets{
 	// https://esphome.io/components/api/
 	// or with this command:
 	// $ dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64
-	EspAPIKey: "dQUfSN4YDUizl0BbW7tUb1zIJcPs/NaSh7xjPb6Sgig="
+	EspAPIKey: "dQUfSN4YDUizl0BbW7tUb1zIJcPs/NaSh7xjPb6Sgig=",
 
 	// password used for programming over the network
-	OtaPassword: ""
+	OtaPassword: "",
 
 	// WiFi connection details
-	WifiSSID: ""
-	WifiPassword: ""
+	WifiSSID: "",
+	WifiPassword: "",
 }
 */
