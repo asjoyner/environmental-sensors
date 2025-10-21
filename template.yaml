@@ -1,0 +1,75 @@
+esphome:
+  name: "{{.Name}}"
+
+esp32:
+  board: adafruit_feather_esp32_v2
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "{{.Secrets.EspAPIKey}}"
+
+ota:
+  - platform: esphome
+    password: "{{.Secrets.OtaPassword}}"
+
+wifi:
+  ssid: "{{.Secrets.WifiSSID}}"
+  password: "{{.Secrets.WifiPassword}}"
+  fast_connect: true 
+  manual_ip:
+    static_ip: {{.IpAddress}}
+    gateway: 10.0.64.1
+    subnet: 255.255.240.0
+
+i2c:
+  sda: SDA
+  scl: SCL
+  scan: true
+  id: bus_a
+
+sensor:
+  - platform: scd4x
+    co2:
+      name: "scd4x CO2"
+    temperature:
+      name: "scd4x Temperature"
+    humidity:
+      name: "scd4x Humidity"
+    update_interval: 5s
+
+  - platform: sht4x
+    temperature:
+      name: "sht4x Temperature"
+    humidity:
+      name: "sht4x Relative Humidity"
+
+web_server:
+  port: 80
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 20
+
+light:
+  - platform: neopixelbus
+    variant: WS2811
+    pin: 0
+    num_leds: 1
+    name: "NeoPixel"
+    initial_state:
+      state: true
+      green: 1
+
+  - platform: status_led
+    name: "Status Light"
+    pin: GPIO13
+    initial_state:
+      state: true
+
