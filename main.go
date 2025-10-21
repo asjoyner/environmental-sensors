@@ -2,9 +2,10 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"log"
 	"os"
-	"os/exec"
+	"path"
 	"text/template"
 )
 
@@ -32,45 +33,21 @@ func main() {
 	// instantiate template
 	var tmpl = template.Must(template.New("espconf").Parse(espHomeTemplate))
 
-	if len(os.Args) != 3 {
-		log.Fatalf("Usage: %s <deviceName> </dev/usbttyS0,COM3,192.168.1.100,foo.local>\n", os.Args[0])
-	}
-	deviceName := os.Args[1]
-	target := os.Args[2]
+	for _, deviceConfig := range configs {
+		deviceConfig.Secrets = secrets
 
-	// pick device from config
-	var deviceConfig *Sensor
-	for _, dc := range configs {
-		if dc.Name == deviceName {
-			dc.Secrets = secrets
-			deviceConfig = &dc
+		// write config file
+		filename := fmt.Sprintf("%s.yaml", deviceConfig.Name)
+		f, err := os.Create(path.Join("configs", filename))
+		if err != nil {
+			log.Fatal(err)
 		}
-	}
-	if deviceConfig == nil {
-		log.Fatal("No config for ", deviceName)
-	}
+		defer f.Close()
 
-	// make temporary file
-	f, err := os.CreateTemp("", deviceName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.Remove(f.Name()) // clean up
-
-	// calculate config for device
-	err = tmpl.Execute(f, *deviceConfig)
-	if err != nil {
-		log.Fatal("interpreting config: ", err)
-	}
-	f.Close()
-
-	cmd := exec.Command("esphome", "upload", "--device", target, f.Name())
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Println(string(output))
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			log.Fatal("esphome error: ", string(exitErr.Stderr))
-		} else {
-			log.Fatal("failed to execute esphome: ", exitErr.Stderr)
+		// write config for device
+		err = tmpl.Execute(f, deviceConfig)
+		if err != nil {
+			log.Fatal("interpreting config: ", err)
 		}
 	}
 }

@@ -1,10 +1,15 @@
 esphome:
   name: "{{.Name}}"
+  # Ensure i2c power is turned on early
+  on_boot:
+    - priority: 600
+      then:
+        - switch.turn_on: i2c_power
 
 esp32:
   board: adafruit_feather_esp32_v2
   framework:
-    type: arduino
+    type: esp-idf
 
 # Enable logging
 logger:
@@ -21,7 +26,7 @@ ota:
 wifi:
   ssid: "{{.Secrets.WifiSSID}}"
   password: "{{.Secrets.WifiPassword}}"
-  fast_connect: true 
+  fast_connect: true
   manual_ip:
     static_ip: {{.IpAddress}}
     gateway: 10.0.64.1
@@ -33,6 +38,20 @@ i2c:
   scan: true
   id: bus_a
 
+# Power enable for STEMMA QT
+output:
+  - platform: gpio
+    pin:
+      number: 2   # GPIO 2 for Feather ESP32 v2
+      inverted: false
+    id: i2c_power_out
+
+switch:
+  - platform: output
+    name: "STEMMA I2C Power"
+    output: i2c_power_out
+    id: i2c_power
+
 sensor:
   - platform: scd4x
     co2:
@@ -41,7 +60,7 @@ sensor:
       name: "scd4x Temperature"
     humidity:
       name: "scd4x Humidity"
-    update_interval: 5s
+    update_interval: 30s
 
   - platform: sht4x
     temperature:
@@ -58,18 +77,14 @@ font:
     size: 20
 
 light:
-  - platform: neopixelbus
-    variant: WS2811
-    pin: 0
+  - platform: esp32_rmt_led_strip  # New component
+    pin: 0  # Same GPIO
     num_leds: 1
+    rgb_order: GRB  # WS281x standard (adjust if needed)
+    chipset: WS2812  # Or WS2811 if exact match
     name: "NeoPixel"
     initial_state:
       state: true
-      green: 1
-
-  - platform: status_led
-    name: "Status Light"
-    pin: GPIO13
-    initial_state:
-      state: true
-
+      red: 0.0  # Use 0-1.0 scale
+      green: 1.0
+      blue: 0.0
