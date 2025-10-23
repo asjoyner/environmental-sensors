@@ -27,10 +27,6 @@ wifi:
   ssid: "{{.Secrets.WifiSSID}}"
   password: "{{.Secrets.WifiPassword}}"
   fast_connect: true
-  manual_ip:
-    static_ip: {{.IpAddress}}
-    gateway: 10.0.64.1
-    subnet: 255.255.240.0
 
 i2c:
   sda: SDA

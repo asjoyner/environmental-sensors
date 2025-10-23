@@ -10,11 +10,12 @@ import (
 )
 
 var configs = []Sensor{
-	{Name: "storage", IpAddress: "10.0.64.10"},
+	{Name: "storage", MAC: "F0:24:F9:97:B8:40", IpAddress: "10.0.64.10"},
 }
 
 type Sensor struct {
 	Name      string
+	MAC       string
 	IpAddress string
 	Secrets   Secrets
 }
@@ -33,11 +34,18 @@ func main() {
 	// instantiate template
 	var tmpl = template.Must(template.New("espconf").Parse(espHomeTemplate))
 
-	for _, deviceConfig := range configs {
-		deviceConfig.Secrets = secrets
+	// write UniFi DHCP lease CSV
+	leasesFileHandle, err := os.Create("unifi-dhcp.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer leasesFileHandle.Close()
+
+	for _, dc := range configs {
+		dc.Secrets = secrets
 
 		// write config file
-		filename := fmt.Sprintf("%s.yaml", deviceConfig.Name)
+		filename := fmt.Sprintf("%s.yaml", dc.Name)
 		f, err := os.Create(path.Join("configs", filename))
 		if err != nil {
 			log.Fatal(err)
@@ -45,9 +53,13 @@ func main() {
 		defer f.Close()
 
 		// write config for device
-		err = tmpl.Execute(f, deviceConfig)
+		err = tmpl.Execute(f, dc)
 		if err != nil {
 			log.Fatal("interpreting config: ", err)
 		}
+
+		// append to leases file
+		entry := fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dc.Name)
+		leasesFileHandle.Write([]byte(entry))
 	}
 }

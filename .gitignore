@@ -1,3 +1,4 @@
 secrets.go
 environmental-sensors*
 configs/
+unifi-dhcp.csv
