@@ -86,7 +86,7 @@ func main() {
 		log.Fatal("interpreting config: ", err)
 	}
 
-	PTRFileHandle, err := os.Create("db.64.0.10.in-addr.arpa")
+	PTRFileHandle, err := os.Create("db.64.0.10")
 	if err != nil {
 		log.Fatal(err)
 	}
