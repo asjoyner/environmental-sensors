@@ -1,0 +1,11 @@
+$ORIGIN {{.Origin}}
+$TTL 259200       ; 3 days
+@ IN SOA ns.joyner.ws. aaron.joyner.ws. (
+                 {{.Serial}} ; serial
+                 28800      ; refresh (8 hours)
+                 7200       ; retry (2 hours)
+                 2419200    ; expire (4 weeks)
+                 86400      ; minimum (1 day)
+                 )
+;
+NS      ns.joyner.ws.
