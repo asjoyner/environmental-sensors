@@ -102,6 +102,10 @@ func main() {
 
 		// write config file
 		filename := fmt.Sprintf("%s.yaml", dc.Name)
+		err := os.MkdirAll("configs", 0700)
+		if err != nil {
+			log.Fatal(err)
+		}
 		f, err := os.Create(path.Join("configs", filename))
 		if err != nil {
 			log.Fatal(err)
