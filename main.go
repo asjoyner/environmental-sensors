@@ -26,7 +26,7 @@ var configs = []Sensor{
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.21", Name: "garage-ne"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.22", Name: "garage-se"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.23", Name: "everything"},
-	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.24", Name: "kitchen"},
+	{MAC: "F0:24:F9:9A:66:28", IpAddress: "10.0.64.24", Name: "kitchen"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.25", Name: "livingroom-west"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.26", Name: "master-bedroom"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.27", Name: "master-bathroom"},
