@@ -109,7 +109,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer leasesFileHandle.Close()
+	defer aRecordFileHandle.Close()
 	cfg.Origin = "iot.joyner.ws."
 	err = dnsTmpl.Execute(aRecordFileHandle, cfg)
 	if err != nil {
@@ -120,7 +120,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer leasesFileHandle.Close()
+	defer PTRFileHandle.Close()
 	cfg.Origin = "64.0.10.in-addr.arpa."
 	err = dnsTmpl.Execute(PTRFileHandle, cfg)
 	if err != nil {
@@ -150,7 +150,7 @@ func main() {
 
 		dnsName := fmt.Sprintf("%s.temphum.iot.joyner.ws.", dc.Name)
 		// append to leases file
-		entry := fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dnsName)
+		entry := fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dc.Name)
 		leasesFileHandle.Write([]byte(entry))
 
 		// append to DNS files
