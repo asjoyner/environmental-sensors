@@ -42,7 +42,7 @@ var configs = []Sensor{
 	{MAC: "F0:24:F9:9A:ED:10", IpAddress: "10.0.64.37", Name: "crafts"},
 	{MAC: "F0:24:F9:97:D0:04", IpAddress: "10.0.64.38", Name: "aaron"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.39", Name: "bath-4"},
-	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.40", Name: "upper-stairwell"},
+	{MAC: "F0:24:F9:99:6A:54", IpAddress: "10.0.64.40", Name: "upper-stairwell"},
 }
 
 type Sensor struct {
