@@ -103,6 +103,13 @@ func main() {
 	}
 	defer leasesFileHandle.Close()
 
+	// create ISC DHCP lease config
+	dhcpdconfFileHandle, err := os.Create("dhcpd-iot.conf")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dhcpdconfFileHandle.Close()
+
 	// create DNS zone files
 	cfg := ZoneHeader{Serial: dnsSerial()}
 	aRecordFileHandle, err := os.Create("db.iot.joyner.ws")
@@ -152,6 +159,10 @@ func main() {
 		// append to leases file
 		entry := fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dc.Name)
 		leasesFileHandle.Write([]byte(entry))
+
+		// append to leases file
+		entry = fmt.Sprintf("host %s { hardware ethernet %s; fixed-address %s; }\n", dc.Name, dc.MAC, dc.IpAddress)
+		dhcpdconfFileHandle.Write([]byte(entry))
 
 		// append to DNS files
 		entry = fmt.Sprintf("%s\tA\t%s\n", dnsName, dc.IpAddress)
