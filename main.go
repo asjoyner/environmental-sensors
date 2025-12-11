@@ -154,21 +154,22 @@ func main() {
 		if err != nil {
 			log.Fatal("interpreting config: ", err)
 		}
-
+		// append to DNS files
 		dnsName := fmt.Sprintf("%s.temphum.iot.joyner.ws.", dc.Name)
+		entry := fmt.Sprintf("%s\tA\t%s\n", dnsName, dc.IpAddress)
+		aRecordFileHandle.Write([]byte(entry))
+		// TODO: actually parse the IP address with a library, maybe?  :)
+		entry = fmt.Sprintf("%s\tPTR\t%s\n", strings.Split(dc.IpAddress, ".")[3], dnsName)
+		PTRFileHandle.Write([]byte(entry))
+
+		if strings.Contains(dc.MAC, "xx:xx") { continue }
 		// append to leases file
-		entry := fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dc.Name)
+		entry = fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dc.Name)
 		leasesFileHandle.Write([]byte(entry))
 
 		// append to leases file
 		entry = fmt.Sprintf("host %s { hardware ethernet %s; fixed-address %s; }\n", dc.Name, dc.MAC, dc.IpAddress)
 		dhcpdconfFileHandle.Write([]byte(entry))
 
-		// append to DNS files
-		entry = fmt.Sprintf("%s\tA\t%s\n", dnsName, dc.IpAddress)
-		aRecordFileHandle.Write([]byte(entry))
-		// TODO: actually parse the IP address with a library, maybe?  :)
-		entry = fmt.Sprintf("%s\tPTR\t%s\n", strings.Split(dc.IpAddress, ".")[3], dnsName)
-		PTRFileHandle.Write([]byte(entry))
 	}
 }
