@@ -12,14 +12,14 @@ import (
 )
 
 var configs = []Sensor{
-	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.10", Name: "vault"},
+	{MAC: "F0:24:F9:97:C2:98", IpAddress: "10.0.64.10", Name: "vault"},
 	{MAC: "F0:24:F9:97:B8:40", IpAddress: "10.0.64.11", Name: "storage"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.12", Name: "boycave"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.13", Name: "theater"},
 	{MAC: "f0:24:f9:99:68:00", IpAddress: "10.0.64.14", Name: "flex"},
 	{MAC: "F0:24:F9:9A:66:4C", IpAddress: "10.0.64.15", Name: "bath-5"},
 	{MAC: "F0:24:F9:97:D0:50", IpAddress: "10.0.64.16", Name: "exercise"},
-	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.17", Name: "mechanical"},
+	{MAC: "10:06:1C:17:37:A8", IpAddress: "10.0.64.17", Name: "mechanical"},
 	{MAC: "F0:24:F9:97:BD:A8", IpAddress: "10.0.64.18", Name: "linen"},
 	{MAC: "F0:24:F9:97:D6:E4", IpAddress: "10.0.64.19", Name: "lavatory-2"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.20", Name: "lower-stairwell"},
@@ -29,7 +29,7 @@ var configs = []Sensor{
 	{MAC: "F0:24:F9:9A:66:28", IpAddress: "10.0.64.24", Name: "kitchen"},
 	{MAC: "F0:24:F9:97:B8:24", IpAddress: "10.0.64.25", Name: "livingroom-west"},
 	{MAC: "F0:24:F9:9A:E9:24", IpAddress: "10.0.64.26", Name: "master-bedroom"},
-	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.27", Name: "master-bathroom"},
+	{MAC: "F0:24:F9:9A:EA:EC", IpAddress: "10.0.64.27", Name: "master-bathroom"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.28", Name: "master-shower"},
 	{MAC: "F0:24:F9:xx:xx:xx", IpAddress: "10.0.64.29", Name: "master-closet"},
 	{MAC: "F0:24:F9:9A:EA:84", IpAddress: "10.0.64.30", Name: "lavatory"},
@@ -162,7 +162,9 @@ func main() {
 		entry = fmt.Sprintf("%s\tPTR\t%s\n", strings.Split(dc.IpAddress, ".")[3], dnsName)
 		PTRFileHandle.Write([]byte(entry))
 
-		if strings.Contains(dc.MAC, "xx:xx") { continue }
+		if strings.Contains(dc.MAC, "xx:xx") {
+			continue
+		}
 		// append to leases file
 		entry = fmt.Sprintf("%s,%s,%s,,,,\n", dc.MAC, dc.IpAddress, dc.Name)
 		leasesFileHandle.Write([]byte(entry))
