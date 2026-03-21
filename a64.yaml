@@ -1,0 +1,1283 @@
+esphome:
+  name: door-switches
+  friendly_name: Door Switches
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+
+prometheus:
+
+# i2c configuration for both buses
+i2c:
+  - id: bus_a
+    sda: 5
+    scl: 16
+    scan: true
+    frequency: 400kHz
+  - id: bus_b
+    sda: 15
+    scl: 4
+    scan: true
+    frequency: 400kHz
+   
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO17_OUT
+  phy_addr: 0
+
+# Configure the i2c i/o hubs
+pcf8574:
+  - id: 'pcf8574_hub_out_1'  # for output channel 1-16
+    i2c_id: bus_a
+    address: 0x24
+    pcf8575: true
+
+  - id: 'pcf8574_hub_out_2'  # for output channel 17-32
+    i2c_id: bus_a
+    address: 0x25
+    pcf8575: true
+
+  - id: 'pcf8574_hub_out_3'  # for output channel 33-48
+    i2c_id: bus_a
+    address: 0x21
+    pcf8575: true
+
+  - id: 'pcf8574_hub_out_4'  # for output channel 49-64
+    i2c_id: bus_a
+    address: 0x22
+    pcf8575: true
+   
+  - id: 'pcf8574_hub_in_1'  # for a64_input channel 1-16
+    i2c_id: bus_b
+    address: 0x24
+    pcf8575: true
+
+  - id: 'pcf8574_hub_in_2'  # for a64_input channel 17-32
+    i2c_id: bus_b
+    address: 0x25
+    pcf8575: true
+
+  - id: 'pcf8574_hub_in_3'  # for a64_input channel 33-48
+    i2c_id: bus_b
+    address: 0x21
+    pcf8575: true
+
+  - id: 'pcf8574_hub_in_4'  # for a64_input channel 49-64
+    i2c_id: bus_b
+    address: 0x22
+    pcf8575: true 
+   
+# Individual outputs
+switch:
+  - platform: gpio
+    name: "a64_light01"
+    id: a64_light01
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 0
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light02"
+    id: a64_light02
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 1
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light03"
+    id: a64_light03
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 2
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light04"
+    id: a64_light04
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 3
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light05"
+    id: a64_light05
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 4
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light06"
+    id: a64_light06
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 5
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light07"
+    id: a64_light07
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 6
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light08"
+    id: a64_light08
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 7
+      mode: OUTPUT
+      inverted: true
+
+
+  - platform: gpio
+    name: "a64_light09"
+    id: a64_light09
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 8
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light10"
+    id: a64_light10
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 9
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light11"
+    id: a64_light11
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 10
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light12"
+    id: a64_light12
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 11
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light13"
+    id: a64_light13
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 12
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light14"
+    id: a64_light14
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 13
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light15"
+    id: a64_light15
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 14
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light16"
+    id: a64_light16
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 15
+      mode: OUTPUT
+      inverted: true
+     
+     
+  - platform: gpio
+    name: "a64_light17"
+    id: a64_light17
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 0
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light18"
+    id: a64_light18
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 1
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light19"
+    id: a64_light19
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 2
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light20"
+    id: a64_light20
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 3
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light21"
+    id: a64_light21
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 4
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light22"
+    id: a64_light22
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 5
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light23"
+    id: a64_light23
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 6
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light24"
+    id: a64_light24
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 7
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light25"
+    id: a64_light25
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 8
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light26"
+    id: a64_light26
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 9
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light27"
+    id: a64_light27
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 10
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light28"
+    id: a64_light28
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 11
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light29"
+    id: a64_light29
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 12
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light30"
+    id: a64_light30
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 13
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light31"
+    id: a64_light31
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 14
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light32"
+    id: a64_light32
+    pin:
+      pcf8574: pcf8574_hub_out_2
+      number: 15
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light33"
+    id: a64_light33
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 0
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light34"
+    id: a64_light34
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 1
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light35"
+    id: a64_light35
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 2
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light36"
+    id: a64_light36
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 3
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light37"
+    id: a64_light37
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 4
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light38"
+    id: a64_light38
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 5
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light39"
+    id: a64_light39
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 6
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light40"
+    id: a64_light40
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 7
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light41"
+    id: a64_light41
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 8
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light42"
+    id: a64_light42
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 9
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light43"
+    id: a64_light43
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 10
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light44"
+    id: a64_light44
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 11
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light45"
+    id: a64_light45
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 12
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light46"
+    id: a64_light46
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 13
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light47"
+    id: a64_light47
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 14
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light48"
+    id: a64_light48
+    pin:
+      pcf8574: pcf8574_hub_out_3
+      number: 15
+      mode: OUTPUT
+      inverted: true
+
+
+  - platform: gpio
+    name: "a64_light49"
+    id: a64_light49
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 0
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light50"
+    id: a64_light50
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 1
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light51"
+    id: a64_light51
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 2
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light52"
+    id: a64_light52
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 3
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light53"
+    id: a64_light53
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 4
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light54"
+    id: a64_light54
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 5
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light55"
+    id: a64_light55
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 6
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light56"
+    id: a64_light56
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 7
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light57"
+    id: a64_light57
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 8
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light58"
+    id: a64_light58
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 9
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light59"
+    id: a64_light59
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 10
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light60"
+    id: a64_light60
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 11
+      mode: OUTPUT
+      inverted: true
+     
+  - platform: gpio
+    name: "a64_light61"
+    id: a64_light61
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 12
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light62"
+    id: a64_light62
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 13
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light63"
+    id: a64_light63
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 14
+      mode: OUTPUT
+      inverted: true
+
+  - platform: gpio
+    name: "a64_light64"
+    id: a64_light64
+    pin:
+      pcf8574: pcf8574_hub_out_4
+      number: 15
+      mode: OUTPUT
+      inverted: true
+
+ 
+# Individual inputs
+binary_sensor:
+  - platform: gpio
+    name: "a64_input1"
+    id: a64_input1
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 0
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input2"
+    id: a64_input2
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 1
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input3"
+    id: a64_input3
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 2
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input4"
+    id: a64_input4
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 3
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "a64_input5"
+    id: a64_input5
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 4
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input6"
+    id: a64_input6
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 5
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input7"
+    id: a64_input7
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 6
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input8"
+    id: a64_input8
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 7
+      mode: INPUT
+      inverted: false
+
+
+  - platform: gpio
+    name: "a64_input9"
+    id: a64_input9
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 8
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input10"
+    id: a64_input10
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 9
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input11"
+    id: a64_input11
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 10
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input12"
+    id: a64_input12
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 11
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "a64_input13"
+    id: a64_input13
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 12
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input14"
+    id: a64_input14
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 13
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input15"
+    id: a64_input15
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 14
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input16"
+    id: a64_input16
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 15
+      mode: INPUT
+      inverted: false
+     
+     
+  - platform: gpio
+    name: "ethan_closet_left"
+    id: a64_input17
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 0
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "lavatory"
+    id: a64_input18
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 1
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "ethan_closet_right"
+    id: a64_input19
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 2
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "guest_bedroom"
+    id: a64_input20
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 3
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "crafts"
+    id: a64_input21
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 4
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "guest_bedroom_closet_left"
+    id: a64_input22
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 5
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "crafts_closet"
+    id: a64_input23
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 6
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "guest_bedroom_closet_right"
+    id: a64_input24
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 7
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "bath4"
+    id: a64_input25
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 8
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "guest_bathroom"
+    id: a64_input26
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 9
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "aaron_office"
+    id: a64_input27
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 10
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "master_bedroom"
+    id: a64_input28
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 11
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "aaron_office_closet_left"
+    id: a64_input29
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 12
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input30"
+    id: a64_input30
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 13
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input31"
+    id: a64_input31
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 14
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "ethan_bathroom"
+    id: a64_input32
+    pin:
+      pcf8574: pcf8574_hub_in_2
+      number: 15
+      mode: INPUT
+      inverted: false
+
+
+  - platform: gpio
+    name: "a64_input33"
+    id: a64_input33
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 0
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "theater_closet"
+    id: a64_input34
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 1
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input35"
+    id: a64_input35
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 2
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "front_door_aux"
+    id: a64_input36
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 3
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "a64_input37"
+    id: a64_input37
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 4
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "front_door_main"
+    id: a64_input38
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 5
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input39"
+    id: a64_input39
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 6
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "everything_exterior"
+    id: a64_input40
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 7
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "master_bath"
+    id: a64_input41
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 8
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "backporch_1"
+    id: a64_input42
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 9
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "master_bath_closet"
+    id: a64_input43
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 10
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "backporch_2"
+    id: a64_input44
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 11
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "master_closet"
+    id: a64_input45
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 12
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "backporch_3"
+    id: a64_input46
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 13
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "coat_closet"
+    id: a64_input47
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 14
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "everything"
+    id: a64_input48
+    pin:
+      pcf8574: pcf8574_hub_in_3
+      number: 15
+      mode: INPUT
+      inverted: false
+
+
+  - platform: gpio
+    name: "flex_closet_left"
+    id: a64_input49
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 0
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input50"
+    id: a64_input50
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 1
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "flex_closet_right"
+    id: a64_input51
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 2
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input52"
+    id: a64_input52
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 3
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "flex_bathroom"
+    id: a64_input53
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 4
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "flex_exterior"
+    id: a64_input54
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 5
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "flex_bath_closet"
+    id: a64_input55
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 6
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "storage"
+    id: a64_input56
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 7
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "exercise"
+    id: a64_input57
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 8
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "boycave"
+    id: a64_input58
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 9
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "mechanical"
+    id: a64_input59
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 10
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "a64_input60"
+    id: a64_input60
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 11
+      mode: INPUT
+      inverted: false
+     
+  - platform: gpio
+    name: "linen"
+    id: a64_input61
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 12
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "theater"
+    id: a64_input62
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 13
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "lavatory_2"
+    id: a64_input63
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 14
+      mode: INPUT
+      inverted: false
+
+  - platform: gpio
+    name: "flex"
+    id: a64_input64
+    pin:
+      pcf8574: pcf8574_hub_in_4
+      number: 15
+      mode: INPUT
+      inverted: false
+
+# ADC Sensors
+sensor:
+  - platform: adc
+    pin: 39
+    name: "presence_sensor_bus_voltage"
+    id: a64_analog_1
+    update_interval: 10s
+    attenuation: 12db
+    filters:
+      - multiply: 18
+#
+#  - platform: adc
+#    pin: 34
+#    name: "a64_analog_2"
+#    id: a64_analog_2
+#    update_interval: 20s
+#    attenuation: 12db
+#   
+#  - platform: adc
+#    pin: 36
+#    name: "a64_analog_3"
+#    id: a64_analog_3
+#    update_interval: 20s
+#   
+#  - platform: adc
+#    pin: 35
+#    name: "presence_sensor_bus_voltage"
+#    name: "a64_analog_4"
+#    id: a64_analog_4
+#    update_interval: 20s
+#    attenuation: 12db

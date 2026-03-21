@@ -1,4 +1,5 @@
 secrets.go
+secrets.yaml
 environmental-sensors*
 configs/
 unifi-dhcp.csv
