@@ -23,15 +23,28 @@ esphome:
     # sht4x is the chip that historically lost this race -- ten of them died in
     # one event on 2026-07-23 while every scd4x on those same nodes survived.
     #
-    # The switch below carries setup_priority 1100 to get the pin driven high
-    # ahead of the i2c bus itself; this blocking settle runs after that and
-    # before the sensors.
+    # The switch below carries setup_priority 1100, so by the time this runs
+    # the rail is already powered.  Driving it high is not enough on its own:
+    # an OTA or a watchdog reboot is a *soft* reset that never interrupts the
+    # STEMMA supply, so a chip that was mid-transaction stays mid-transaction
+    # and can hold SDA low across the reboot.  Observed on the first
+    # post-OTA boot of master-bedroom on 2026-08-07: the scd4x came up failed
+    # and the bus needed "Recovery: bus successfully recovered".
     #
-    # This must be a blocking delay, not a `delay:` action -- `delay:` yields
+    # So cut the rail and bring it back, giving both chips a real power-on
+    # reset.  At priority 1050 this lands after the switch (1100) but before
+    # the i2c bus initialises and scans (BUS, 1000), so the scan sees freshly
+    # reset chips and the sensors at DATA (600) are far downstream.
+    #
+    # These must be blocking delays, not `delay:` actions -- `delay:` yields
     # back to the setup loop, which is exactly the race we are closing.
-    - priority: 900
+    - priority: 1050
       then:
-        - lambda: 'delay(1200);'
+        - lambda: |-
+            id(i2c_power).turn_off();
+            delay(500);    // let the rail discharge so the chips really reset
+            id(i2c_power).turn_on();
+            delay(1200);   // scd4x needs ~1s after power-up before it answers
 
 esp32:
   board: adafruit_feather_esp32_v2

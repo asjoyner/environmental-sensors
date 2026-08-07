@@ -53,6 +53,13 @@ for node in "${nodes[@]}"; do
 
     echo
     echo "================ $node ($ip) ================"
+    # `esphome upload` does NOT build -- it expects the binary to already
+    # exist. Compile first, and treat a build failure as fatal for the whole
+    # run rather than limping on to the next node with a stale image.
+    if ! "$ESPHOME" compile "configs/$node.yaml"; then
+        echo "!! $node: COMPILE FAILED -- aborting rollout"
+        exit 1
+    fi
     if ! "$ESPHOME" upload "configs/$node.yaml" --device "$ip"; then
         echo "!! $node: OTA upload FAILED"
         failed+=("$node(upload)")
@@ -61,11 +68,16 @@ for node in "${nodes[@]}"; do
 
     # The node reboots into the new image. Wait for /metrics, which only the
     # new firmware serves -- so this doubles as proof the new image is running.
-    echo "-- waiting for $node to serve /metrics ..."
+    #
+    # Wait for uptime >= 45s before believing anything. The scd4x defers its
+    # first i2c transaction by 1s and only publishes on its 30s interval, so a
+    # node scraped the instant it answers looks like it has a dead chip.
+    echo "-- waiting for $node to serve /metrics and settle ..."
     ok=""
     for _ in $(seq 1 60); do
         if curl -sf --max-time 5 "http://$ip/metrics" -o /tmp/m.$$ 2>/dev/null && [ -s /tmp/m.$$ ]; then
-            ok=1; break
+            up=$(grep 'esphome_sensor_value.*id="uptime"' /tmp/m.$$ | grep -oE '[0-9.]+$' | cut -d. -f1)
+            if [ -n "$up" ] && [ "$up" -ge 45 ]; then ok=1; break; fi
         fi
         sleep 5
     done
@@ -86,6 +98,12 @@ for node in "${nodes[@]}"; do
     elif [ "$n_chips" -lt 5 ]; then
         echo "!! $node: only $n_chips chip sensors present, expected 5"
         failed+=("$node(missing-sensors)")
+    elif stale=$(grep -E 'esphome_sensor_value.*id="(scd4x|sht4x)_seconds_since_reading"' /tmp/m.$$ \
+                 | awk -F' ' '$NF+0 > 120 {print}' | grep . ); then
+        # "not failed" is not the same as "publishing". Catch a chip that
+        # initialised but has since gone quiet.
+        echo "!! $node: chip initialised but is not publishing:"; echo "$stale"
+        failed+=("$node(stale)")
     else
         echo "-- $node OK: $n_chips chip sensors, none failed"
         grep -E 'name="(uptime|reset_reason|wifi_signal)"' /tmp/m.$$ | sed 's/^/     /' || true
