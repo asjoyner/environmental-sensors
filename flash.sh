@@ -92,11 +92,14 @@ for node in "${nodes[@]}"; do
     # failure even though the flash itself worked.
     bad=$(grep '^esphome_sensor_failed' /tmp/m.$$ | grep -E 'name="(scd4x|sht4x)' | grep -v '} 0$' || true)
     n_chips=$(grep -c 'esphome_sensor_failed.*name="\(scd4x\|sht4x\)' /tmp/m.$$ || true)
+    # Nodes built without an SCD4x expose only the three sht4x-side series, so
+    # take the expectation from the config rather than assuming both chips.
+    if grep -q 'platform: scd4x' "configs/$node.yaml"; then want_chips=5; else want_chips=3; fi
     if [ -n "$bad" ]; then
         echo "!! $node: chip reported failed after flash:"; echo "$bad"
         failed+=("$node(chip-failed)")
-    elif [ "$n_chips" -lt 5 ]; then
-        echo "!! $node: only $n_chips chip sensors present, expected 5"
+    elif [ "$n_chips" -lt "$want_chips" ]; then
+        echo "!! $node: only $n_chips chip sensors present, expected $want_chips"
         failed+=("$node(missing-sensors)")
     elif stale=$(grep -E 'esphome_sensor_value.*id="(scd4x|sht4x)_seconds_since_reading"' /tmp/m.$$ \
                  | awk -F' ' '$NF+0 > 120 {print}' | grep . ); then
