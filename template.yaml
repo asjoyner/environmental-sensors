@@ -149,7 +149,11 @@ globals:
     initial_value: '0'
 
 sensor:
-  - platform: scd4x
+{{if .NoCO2}}  # This node was built without an SCD4x fitted -- an i2c bus scan finds only
+  # 0x44 (SHT4x), no 0x62. Declaring the sensor anyway would mark it failed on
+  # every boot, alert forever, and make the watchdog spend its entire reboot
+  # budget hunting hardware that was never installed.
+{{else}}  - platform: scd4x
     co2:
       name: "scd4x CO2"
       id: scd_co2
@@ -161,6 +165,7 @@ sensor:
     humidity:
       name: "scd4x Humidity"
     update_interval: 30s
+{{end}}
 
   - platform: sht4x
     temperature:
@@ -186,13 +191,14 @@ sensor:
     free:
       name: "Heap Free"
 
-  - platform: template
+{{if not .NoCO2}}  - platform: template
     name: "scd4x Seconds Since Reading"
     id: scd_age
     unit_of_measurement: "s"
     accuracy_decimals: 0
     update_interval: 30s
     lambda: 'return (millis() - id(last_scd_ok)) / 1000.0f;'
+{{end}}
 
   - platform: template
     name: "sht4x Seconds Since Reading"
@@ -248,8 +254,9 @@ interval:
       - lambda: |-
           const uint32_t now = millis();
           const uint32_t stall = ${stall_timeout_ms};
-          const bool stalled = (now - id(last_scd_ok) > stall) ||
-                               (now - id(last_sht_ok) > stall);
+          // Only chips this node actually has are allowed to trigger recovery.
+          const bool stalled = {{if not .NoCO2}}(now - id(last_scd_ok) > stall) ||
+                               {{end}}(now - id(last_sht_ok) > stall);
 
           if (!stalled) {
             if (id(recovery_stage) != 0 && id(recovery_stage) != 3) {

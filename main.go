@@ -20,17 +20,17 @@ var configs = []Sensor{
 	{MAC: "F0:24:F9:9A:66:4C", IpAddress: "10.0.64.15", Name: "bath-5"},
 	{MAC: "F0:24:F9:97:D0:50", IpAddress: "10.0.64.16", Name: "exercise"},
 	{MAC: "10:06:1C:17:37:A8", IpAddress: "10.0.64.17", Name: "mechanical"},
-	{MAC: "F0:24:F9:97:BD:A8", IpAddress: "10.0.64.18", Name: "linen"},
+	{MAC: "F0:24:F9:97:BD:A8", IpAddress: "10.0.64.18", Name: "linen", NoCO2: true},
 	{MAC: "F0:24:F9:97:D6:E4", IpAddress: "10.0.64.19", Name: "lavatory-2"},
 	{MAC: "10:06:1C:18:D5:E8", IpAddress: "10.0.64.20", Name: "lower-stairwell"},
 	{MAC: "F0:24:F9:97:BE:98", IpAddress: "10.0.64.21", Name: "garage-ne"},
-	{MAC: "F0:24:F9:9A:64:64", IpAddress: "10.0.64.22", Name: "garage-se"},
+	{MAC: "F0:24:F9:9A:64:64", IpAddress: "10.0.64.22", Name: "garage-se", NoCO2: true},
 	{MAC: "F0:24:F9:97:D7:64", IpAddress: "10.0.64.23", Name: "everything"},
 	{MAC: "F0:24:F9:9A:66:28", IpAddress: "10.0.64.24", Name: "kitchen"},
 	{MAC: "F0:24:F9:97:B8:24", IpAddress: "10.0.64.25", Name: "livingroom-west"},
 	{MAC: "F0:24:F9:9A:E9:24", IpAddress: "10.0.64.26", Name: "master-bedroom"},
-	{MAC: "F0:24:F9:9A:EA:EC", IpAddress: "10.0.64.27", Name: "master-bathroom"},
-	{MAC: "F0:24:F9:97:D6:84", IpAddress: "10.0.64.28", Name: "master-shower"},
+	{MAC: "F0:24:F9:9A:EA:EC", IpAddress: "10.0.64.27", Name: "master-bathroom", NoCO2: true},
+	{MAC: "F0:24:F9:97:D6:84", IpAddress: "10.0.64.28", Name: "master-shower", NoCO2: true},
 	{MAC: "F0:24:F9:97:BF:B0", IpAddress: "10.0.64.29", Name: "master-closet"},
 	{MAC: "F0:24:F9:9A:EA:84", IpAddress: "10.0.64.30", Name: "lavatory"},
 	{MAC: "F0:24:F9:97:C1:F8", IpAddress: "10.0.64.31", Name: "bath-2"},
@@ -42,14 +42,20 @@ var configs = []Sensor{
 	{MAC: "F0:24:F9:9A:ED:10", IpAddress: "10.0.64.37", Name: "crafts"},
 	{MAC: "F0:24:F9:97:D0:04", IpAddress: "10.0.64.38", Name: "aaron"},
 	{MAC: "F0:24:F9:95:20:AC", IpAddress: "10.0.64.39", Name: "bath-4"},
-	{MAC: "F0:24:F9:99:6A:54", IpAddress: "10.0.64.40", Name: "upper-stairwell"},
+	{MAC: "F0:24:F9:99:6A:54", IpAddress: "10.0.64.40", Name: "upper-stairwell", NoCO2: true},
 }
 
 type Sensor struct {
 	Name      string
 	MAC       string
 	IpAddress string
-	Secrets   Secrets
+	// NoCO2 marks a node that was built without an SCD4x fitted. The template
+	// omits the CO2 sensor entirely for these -- otherwise ESPHome marks the
+	// missing chip failed on every boot and the recovery watchdog burns its
+	// whole reboot budget hunting for hardware that was never there.
+	// Confirmed by i2c bus scan: these nodes show only 0x44 (SHT4x), no 0x62.
+	NoCO2   bool
+	Secrets Secrets
 }
 
 type Secrets struct {
