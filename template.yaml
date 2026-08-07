@@ -1,10 +1,31 @@
+substitutions:
+  node_name: "{{.Name}}"
+  # A chip is considered stalled once this long has passed with no fresh
+  # publish.  The scd4x publishes every 30s and the sht4x every 60s, so five
+  # minutes is ~5 missed readings -- long enough to ride out a wifi hiccup,
+  # short enough that a wedged chip is caught within one HVAC cycle.
+  stall_timeout_ms: "300000"
+  # How many reboots we are willing to spend on one chip before we stop and
+  # let the alerting take over.  A physically dead sensor must not put the
+  # node into a reboot loop.
+  reboot_budget: "3"
+
 esphome:
-  name: "{{.Name}}"
-  # Ensure i2c power is turned on early
+  name: "${node_name}"
   on_boot:
-    - priority: 600
+    # The STEMMA QT rail is switched by GPIO2.  The scd4x and sht4x initialise
+    # at setup_priority DATA (600) and a failed init is permanent -- ESPHome
+    # calls mark_failed() and never retries the component.  So the rail has to
+    # be up, and the chips have to be past their own power-on reset, before
+    # anything touches the bus.  The switch below carries setup_priority 1100
+    # to get the pin driven high ahead of the i2c bus itself; this blocking
+    # settle runs after that and before the sensors.
+    #
+    # This must be a blocking delay, not a `delay:` action -- `delay:` yields
+    # back to the setup loop, which is exactly the race we are closing.
+    - priority: 900
       then:
-        - switch.turn_on: i2c_power
+        - lambda: 'delay(1200);'
 
 esp32:
   board: adafruit_feather_esp32_v2
@@ -34,6 +55,20 @@ i2c:
   scan: true
   id: bus_a
 
+web_server:
+  port: 80
+
+# Exposes /metrics on port 80 so Prometheus can scrape the node directly,
+# without Home Assistant in the path.  This is what gives us
+# esphome_sensor_failed -- the only signal that distinguishes "chip failed to
+# initialise" from "node is offline".
+prometheus:
+
+# Reset reason and heap, for diagnosing the mass-reboot events that take out a
+# batch of chips at once.
+debug:
+  update_interval: 60s
+
 # Power enable for STEMMA QT
 output:
   - platform: gpio
@@ -41,17 +76,66 @@ output:
       number: 2   # GPIO 2 for Feather ESP32 v2
       inverted: false
     id: i2c_power_out
+    setup_priority: 1100
 
 switch:
   - platform: output
     name: "STEMMA I2C Power"
     output: i2c_power_out
     id: i2c_power
+    # Was RESTORE_DEFAULT_OFF, which actively drove the rail low during boot
+    # and left an on_boot automation to race the sensors for it.
+    restore_mode: ALWAYS_ON
+    setup_priority: 1100
+
+globals:
+  # millis() of the last publish from each chip.  Zero at boot, which makes the
+  # first stall check fall due at stall_timeout_ms of uptime -- that doubles as
+  # the post-boot grace period.
+  - id: last_scd_ok
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: last_sht_ok
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  # 0 = healthy, 1 = rail power-cycled and waiting, 3 = gave up
+  - id: recovery_stage
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: stage_since
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  # Lifetime counters.  restore_value writes flash, so these are only touched
+  # on an actual recovery event, never on the 30s tick.
+  - id: power_cycles_total
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: reboots_total
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: consec_reboots
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: giveups_total
+    type: int
+    restore_value: true
+    initial_value: '0'
 
 sensor:
   - platform: scd4x
     co2:
       name: "scd4x CO2"
+      id: scd_co2
+      on_value:
+        then:
+          - lambda: 'id(last_scd_ok) = millis();'
     temperature:
       name: "scd4x Temperature"
     humidity:
@@ -61,11 +145,143 @@ sensor:
   - platform: sht4x
     temperature:
       name: "sht4x Temperature"
+      id: sht_temp
+      on_value:
+        then:
+          - lambda: 'id(last_sht_ok) = millis();'
     humidity:
       name: "sht4x Relative Humidity"
 
-web_server:
-  port: 80
+  # --- diagnostics, scraped straight off /metrics -------------------------
+  - platform: uptime
+    name: "Uptime"
+    id: node_uptime
+    update_interval: 60s
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+
+  - platform: template
+    name: "scd4x Seconds Since Reading"
+    id: scd_age
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: 'return (millis() - id(last_scd_ok)) / 1000.0f;'
+
+  - platform: template
+    name: "sht4x Seconds Since Reading"
+    id: sht_age
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: 'return (millis() - id(last_sht_ok)) / 1000.0f;'
+
+  - platform: template
+    name: "I2C Power Cycles"
+    unit_of_measurement: ""
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: 'return id(power_cycles_total);'
+
+  - platform: template
+    name: "Recovery Reboots"
+    unit_of_measurement: ""
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: 'return id(reboots_total);'
+
+  - platform: template
+    name: "Recovery Giveups"
+    unit_of_measurement: ""
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: 'return id(giveups_total);'
+
+binary_sensor:
+  # Latches high when the watchdog has spent its whole reboot budget and the
+  # chip is still dead.  This is the "automatic recovery did not work, come
+  # look at me" signal.
+  - platform: template
+    name: "Sensor Recovery Failed"
+    lambda: 'return id(recovery_stage) == 3;'
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+
+button:
+  # Remote reboot lever.  Without this the only way to restart a wedged node
+  # was an OTA push or a trip to the outlet.
+  - platform: restart
+    name: "Restart"
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          const uint32_t now = millis();
+          const uint32_t stall = ${stall_timeout_ms};
+          const bool stalled = (now - id(last_scd_ok) > stall) ||
+                               (now - id(last_sht_ok) > stall);
+
+          if (!stalled) {
+            if (id(recovery_stage) != 0 && id(recovery_stage) != 3) {
+              ESP_LOGI("envwd", "sensors reporting again; recovery complete");
+              id(recovery_stage) = 0;
+              id(stage_since) = now;
+            }
+            // Half an hour of clean running earns the reboot budget back, so a
+            // node that really did recover can heal itself again next time.
+            if (now > 1800000 && id(consec_reboots) != 0) {
+              id(consec_reboots) = 0;
+            }
+            return;
+          }
+
+          switch (id(recovery_stage)) {
+            case 0:
+              // Cheapest fix first: bounce the STEMMA rail.  This recovers a
+              // chip that is wedged at runtime but whose ESPHome component is
+              // still alive and polling.
+              ESP_LOGW("envwd", "sensor stall detected; power-cycling STEMMA rail");
+              id(power_cycles_total) += 1;
+              id(i2c_power).turn_off();
+              delay(500);
+              id(i2c_power).turn_on();
+              id(recovery_stage) = 1;
+              id(stage_since) = now;
+              break;
+
+            case 1:
+              // Give the rail bounce a full stall window to take effect.
+              if (now - id(stage_since) < stall) break;
+              // It did not.  The component is almost certainly mark_failed(),
+              // which only a fresh setup() can clear -- i.e. a reboot.
+              if (id(consec_reboots) >= ${reboot_budget}) {
+                ESP_LOGE("envwd", "reboot budget spent and sensor still dead; giving up");
+                id(giveups_total) += 1;
+                id(recovery_stage) = 3;
+                break;
+              }
+              id(reboots_total) += 1;
+              id(consec_reboots) += 1;
+              ESP_LOGE("envwd", "rebooting to re-init i2c sensors (attempt %d)",
+                       id(consec_reboots));
+              App.safe_reboot();
+              break;
+
+            default:
+              // Stage 3: stay up and keep serving /metrics so the alert fires
+              // and the node can still be power-cycled or rebooted remotely.
+              break;
+          }
 
 font:
   - file: "gfonts://Roboto"
