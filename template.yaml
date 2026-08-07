@@ -13,13 +13,19 @@ substitutions:
 esphome:
   name: "${node_name}"
   on_boot:
-    # The STEMMA QT rail is switched by GPIO2.  The scd4x and sht4x initialise
-    # at setup_priority DATA (600) and a failed init is permanent -- ESPHome
-    # calls mark_failed() and never retries the component.  So the rail has to
-    # be up, and the chips have to be past their own power-on reset, before
-    # anything touches the bus.  The switch below carries setup_priority 1100
-    # to get the pin driven high ahead of the i2c bus itself; this blocking
-    # settle runs after that and before the sensors.
+    # The STEMMA QT rail is switched by GPIO2.  Both chips initialise at
+    # setup_priority DATA (600) and a failed init is permanent -- ESPHome calls
+    # mark_failed() and never retries the component.
+    #
+    # SHT4XComponent::setup() probes the bus synchronously, right there at 600,
+    # so it has zero tolerance for the rail coming up late.  SCD4XComponent
+    # defers its first transaction by set_timeout(1000, ...), which is why the
+    # sht4x is the chip that historically lost this race -- ten of them died in
+    # one event on 2026-07-23 while every scd4x on those same nodes survived.
+    #
+    # The switch below carries setup_priority 1100 to get the pin driven high
+    # ahead of the i2c bus itself; this blocking settle runs after that and
+    # before the sensors.
     #
     # This must be a blocking delay, not a `delay:` action -- `delay:` yields
     # back to the setup loop, which is exactly the race we are closing.
@@ -83,8 +89,9 @@ switch:
     name: "STEMMA I2C Power"
     output: i2c_power_out
     id: i2c_power
-    # Was RESTORE_DEFAULT_OFF, which actively drove the rail low during boot
-    # and left an on_boot automation to race the sensors for it.
+    # With no restore_mode this resolves to ALWAYS_OFF, so the old firmware
+    # unconditionally drove the rail low on every boot and left an on_boot
+    # automation at priority 600 to race the sensors for it.
     restore_mode: ALWAYS_ON
     setup_priority: 1100
 
