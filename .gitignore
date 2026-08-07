@@ -5,3 +5,4 @@ configs/
 unifi-dhcp.csv
 dhcpd-iot.conf
 db.*
+.venv/

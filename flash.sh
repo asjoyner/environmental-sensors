@@ -1,0 +1,102 @@
+#!/bin/bash
+# Flash env sensor nodes over OTA and verify they actually came back.
+#
+#   ./flash.sh vault              flash one node
+#   ./flash.sh --all              flash every node in dhcpd-iot.conf
+#   ./flash.sh --all --except a b flash everything but a and b
+#
+# Nodes are flashed one at a time and each is verified before the next starts,
+# so a bad build stops the rollout instead of taking out the fleet.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+ESPHOME=./.venv/bin/esphome
+[ -x "$ESPHOME" ] || { echo "FATAL: $ESPHOME missing -- python3 -m venv .venv && .venv/bin/pip install esphome==2025.10.2"; exit 1; }
+[ -f secrets.go ] || { echo "FATAL: secrets.go missing"; exit 1; }
+if grep -q '"FIXME"' secrets.go; then
+    echo "FATAL: secrets.go still contains FIXME placeholders."
+    echo "       Flashing with a wrong WiFi password strands the node off the"
+    echo "       network and it can only be recovered over USB. Refusing."
+    exit 1
+fi
+
+# Regenerate configs/ from template.yaml + secrets.go. This also rewrites the
+# DNS and DHCP files, which is where the name->IP mapping below comes from.
+echo "==> regenerating configs"
+go run .
+
+declare -A IP
+# host <name> { hardware ethernet <mac>; fixed-address <ip>; }
+while read -r _ name _ _ _ _ _ addr _; do
+    IP[$name]="${addr%;}"
+done < dhcpd-iot.conf
+
+if [ "${1:-}" = "--all" ]; then
+    shift
+    skip=" "
+    [ "${1:-}" = "--except" ] && { shift; skip=" $* "; }
+    nodes=()
+    for n in $(printf '%s\n' "${!IP[@]}" | sort); do
+        [[ "$skip" == *" $n "* ]] || nodes+=("$n")
+    done
+else
+    nodes=("$@")
+fi
+[ ${#nodes[@]} -gt 0 ] || { echo "FATAL: no nodes given"; exit 1; }
+
+echo "==> ${#nodes[@]} node(s) to flash: ${nodes[*]}"
+failed=()
+
+for node in "${nodes[@]}"; do
+    ip="${IP[$node]:-}"
+    [ -n "$ip" ] || { echo "!! $node: no IP in dhcpd-iot.conf, skipping"; failed+=("$node(no-ip)"); continue; }
+
+    echo
+    echo "================ $node ($ip) ================"
+    if ! "$ESPHOME" upload "configs/$node.yaml" --device "$ip"; then
+        echo "!! $node: OTA upload FAILED"
+        failed+=("$node(upload)")
+        continue
+    fi
+
+    # The node reboots into the new image. Wait for /metrics, which only the
+    # new firmware serves -- so this doubles as proof the new image is running.
+    echo "-- waiting for $node to serve /metrics ..."
+    ok=""
+    for _ in $(seq 1 60); do
+        if curl -sf --max-time 5 "http://$ip/metrics" -o /tmp/m.$$ 2>/dev/null && [ -s /tmp/m.$$ ]; then
+            ok=1; break
+        fi
+        sleep 5
+    done
+    if [ -z "$ok" ]; then
+        echo "!! $node: never served /metrics after 5 minutes"
+        failed+=("$node(no-metrics)")
+        continue
+    fi
+
+    # Both chips must be present and not marked failed. This is the whole point
+    # of the exercise, so a node that comes back with a dead chip counts as a
+    # failure even though the flash itself worked.
+    bad=$(grep '^esphome_sensor_failed' /tmp/m.$$ | grep -E 'name="(scd4x|sht4x)' | grep -v '} 0$' || true)
+    n_chips=$(grep -c 'esphome_sensor_failed.*name="\(scd4x\|sht4x\)' /tmp/m.$$ || true)
+    if [ -n "$bad" ]; then
+        echo "!! $node: chip reported failed after flash:"; echo "$bad"
+        failed+=("$node(chip-failed)")
+    elif [ "$n_chips" -lt 5 ]; then
+        echo "!! $node: only $n_chips chip sensors present, expected 5"
+        failed+=("$node(missing-sensors)")
+    else
+        echo "-- $node OK: $n_chips chip sensors, none failed"
+        grep -E 'name="(uptime|reset_reason|wifi_signal)"' /tmp/m.$$ | sed 's/^/     /' || true
+    fi
+    rm -f /tmp/m.$$
+done
+
+echo
+if [ ${#failed[@]} -eq 0 ]; then
+    echo "==> all ${#nodes[@]} node(s) flashed and verified"
+else
+    echo "==> ${#failed[@]} of ${#nodes[@]} node(s) had problems: ${failed[*]}"
+    exit 1
+fi
