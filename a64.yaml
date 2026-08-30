@@ -1251,6 +1251,46 @@ binary_sensor:
       inverted: false
 
 # ADC Sensors
+
+# ---------------------------------------------------------------------------
+# 8-channel PT1000 RTD module on RS485 (Modbus RTU), 5 probes fitted.
+#
+# KC868-A64 RS485 transceiver is RX=GPIO13 / TX=GPIO14. Those were the only
+# free pins that mattered -- 4,5,15,16 are the two i2c buses and 17,18,23 are
+# the LAN8720.
+#
+# Register map was CONFIRMED ON THE HARDWARE, not assumed: a discovery build
+# read three candidate layouts at once. Reads at 0x30 (FP32) and 0x68 (S_WORD,
+# 0.1C) both returned the same value, while 0x00 returned an illegal-address
+# error -- which also proves the module is answering and validating addresses.
+# Word order is big-endian: FP32 gives -100.00 where FP32_R gives 0.00.
+# Matches the ComWinTop CWT-TM-8PT map. Channels 1-8 are FP32 pairs at
+# 0x30,0x32,0x34,0x36,0x38,0x3A,0x3C,0x3E.
+#
+# The FP32 block is used rather than the 0.1C integer block at 0x68 purely for
+# resolution; both are live and either works.
+# ---------------------------------------------------------------------------
+uart:
+  id: uart_rs485
+  tx_pin: GPIO14
+  rx_pin: GPIO13
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+modbus:
+  id: modbus_rs485
+  uart_id: uart_rs485
+
+modbus_controller:
+  - id: ptmod
+    address: 1          # module default; settable via register 0x10 hi byte
+    modbus_id: modbus_rs485
+    update_interval: 30s
+    command_throttle: 200ms
+    setup_priority: -10
+
 sensor:
   - platform: adc
     pin: 39
@@ -1281,3 +1321,103 @@ sensor:
 #    id: a64_analog_4
 #    update_interval: 20s
 #    attenuation: 12db
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_probe_1"
+    id: pt1000_probe_1
+    address: 0x30
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # The module reports -100C for an open circuit / no probe. Publishing
+      # that verbatim would put a plausible-looking -148F into Home Assistant
+      # and any average built on it. Send NaN instead so the entity goes
+      # unavailable and the fault is visible rather than silently wrong.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_probe_2"
+    id: pt1000_probe_2
+    address: 0x32
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # The module reports -100C for an open circuit / no probe. Publishing
+      # that verbatim would put a plausible-looking -148F into Home Assistant
+      # and any average built on it. Send NaN instead so the entity goes
+      # unavailable and the fault is visible rather than silently wrong.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_probe_3"
+    id: pt1000_probe_3
+    address: 0x34
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # The module reports -100C for an open circuit / no probe. Publishing
+      # that verbatim would put a plausible-looking -148F into Home Assistant
+      # and any average built on it. Send NaN instead so the entity goes
+      # unavailable and the fault is visible rather than silently wrong.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_probe_4"
+    id: pt1000_probe_4
+    address: 0x36
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # The module reports -100C for an open circuit / no probe. Publishing
+      # that verbatim would put a plausible-looking -148F into Home Assistant
+      # and any average built on it. Send NaN instead so the entity goes
+      # unavailable and the fault is visible rather than silently wrong.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_probe_5"
+    id: pt1000_probe_5
+    address: 0x38
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # The module reports -100C for an open circuit / no probe. Publishing
+      # that verbatim would put a plausible-looking -148F into Home Assistant
+      # and any average built on it. Send NaN instead so the entity goes
+      # unavailable and the fault is visible rather than silently wrong.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  # Diagnostic: the same channel 1 register, UNFILTERED. The filtered probes
+  # above go NaN for both "probe open" and "module unreachable", which would
+  # otherwise be indistinguishable. This one reads -100 when the module is
+  # answering but the probe is open, and goes unavailable only when the module
+  # itself stops responding.
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_module_ch1_raw"
+    id: pt1000_module_ch1_raw
+    address: 0x30
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
