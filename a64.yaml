@@ -1323,8 +1323,8 @@ sensor:
 #    attenuation: 12db
   - platform: modbus_controller
     modbus_controller_id: ptmod
-    name: "pt1000_probe_1"
-    id: pt1000_probe_1
+    name: "pt1000_probe_ch1"
+    id: pt1000_probe_ch1
     address: 0x30
     register_type: holding
     value_type: FP32
@@ -1333,32 +1333,14 @@ sensor:
     state_class: measurement
     accuracy_decimals: 2
     filters:
-      # The module reports -100C for an open circuit / no probe. Publishing
-      # that verbatim would put a plausible-looking -148F into Home Assistant
-      # and any average built on it. Send NaN instead so the entity goes
-      # unavailable and the fault is visible rather than silently wrong.
+      # -100C is the module's fault value for a channel it cannot read. Publish
+      # NaN instead so the entity goes unavailable, rather than dropping a
+      # plausible-looking -148F into HA and anything that averages it.
       - lambda: 'return (x <= -99.0f) ? NAN : x;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
-    name: "pt1000_probe_2"
-    id: pt1000_probe_2
-    address: 0x32
-    register_type: holding
-    value_type: FP32
-    unit_of_measurement: "°C"
-    device_class: temperature
-    state_class: measurement
-    accuracy_decimals: 2
-    filters:
-      # The module reports -100C for an open circuit / no probe. Publishing
-      # that verbatim would put a plausible-looking -148F into Home Assistant
-      # and any average built on it. Send NaN instead so the entity goes
-      # unavailable and the fault is visible rather than silently wrong.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
-  - platform: modbus_controller
-    modbus_controller_id: ptmod
-    name: "pt1000_probe_3"
-    id: pt1000_probe_3
+    name: "pt1000_probe_ch3"
+    id: pt1000_probe_ch3
     address: 0x34
     register_type: holding
     value_type: FP32
@@ -1367,32 +1349,14 @@ sensor:
     state_class: measurement
     accuracy_decimals: 2
     filters:
-      # The module reports -100C for an open circuit / no probe. Publishing
-      # that verbatim would put a plausible-looking -148F into Home Assistant
-      # and any average built on it. Send NaN instead so the entity goes
-      # unavailable and the fault is visible rather than silently wrong.
+      # -100C is the module's fault value for a channel it cannot read. Publish
+      # NaN instead so the entity goes unavailable, rather than dropping a
+      # plausible-looking -148F into HA and anything that averages it.
       - lambda: 'return (x <= -99.0f) ? NAN : x;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
-    name: "pt1000_probe_4"
-    id: pt1000_probe_4
-    address: 0x36
-    register_type: holding
-    value_type: FP32
-    unit_of_measurement: "°C"
-    device_class: temperature
-    state_class: measurement
-    accuracy_decimals: 2
-    filters:
-      # The module reports -100C for an open circuit / no probe. Publishing
-      # that verbatim would put a plausible-looking -148F into Home Assistant
-      # and any average built on it. Send NaN instead so the entity goes
-      # unavailable and the fault is visible rather than silently wrong.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
-  - platform: modbus_controller
-    modbus_controller_id: ptmod
-    name: "pt1000_probe_5"
-    id: pt1000_probe_5
+    name: "pt1000_probe_ch5"
+    id: pt1000_probe_ch5
     address: 0x38
     register_type: holding
     value_type: FP32
@@ -1401,21 +1365,117 @@ sensor:
     state_class: measurement
     accuracy_decimals: 2
     filters:
-      # The module reports -100C for an open circuit / no probe. Publishing
-      # that verbatim would put a plausible-looking -148F into Home Assistant
-      # and any average built on it. Send NaN instead so the entity goes
-      # unavailable and the fault is visible rather than silently wrong.
+      # -100C is the module's fault value for a channel it cannot read. Publish
+      # NaN instead so the entity goes unavailable, rather than dropping a
+      # plausible-looking -148F into HA and anything that averages it.
       - lambda: 'return (x <= -99.0f) ? NAN : x;'
-  # Diagnostic: the same channel 1 register, UNFILTERED. The filtered probes
-  # above go NaN for both "probe open" and "module unreachable", which would
-  # otherwise be indistinguishable. This one reads -100 when the module is
-  # answering but the probe is open, and goes unavailable only when the module
-  # itself stops responding.
   - platform: modbus_controller
     modbus_controller_id: ptmod
-    name: "pt1000_module_ch1_raw"
-    id: pt1000_module_ch1_raw
+    name: "pt1000_probe_ch6"
+    id: pt1000_probe_ch6
+    address: 0x3a
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # -100C is the module's fault value for a channel it cannot read. Publish
+      # NaN instead so the entity goes unavailable, rather than dropping a
+      # plausible-looking -148F into HA and anything that averages it.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_probe_ch8"
+    id: pt1000_probe_ch8
+    address: 0x3e
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # -100C is the module's fault value for a channel it cannot read. Publish
+      # NaN instead so the entity goes unavailable, rather than dropping a
+      # plausible-looking -148F into HA and anything that averages it.
+      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch1"
+    id: pt1000_raw_ch1
     address: 0x30
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch2"
+    id: pt1000_raw_ch2
+    address: 0x32
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch3"
+    id: pt1000_raw_ch3
+    address: 0x34
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch4"
+    id: pt1000_raw_ch4
+    address: 0x36
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch5"
+    id: pt1000_raw_ch5
+    address: 0x38
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch6"
+    id: pt1000_raw_ch6
+    address: 0x3a
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch7"
+    id: pt1000_raw_ch7
+    address: 0x3c
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: ptmod
+    name: "pt1000_raw_ch8"
+    id: pt1000_raw_ch8
+    address: 0x3e
     register_type: holding
     value_type: FP32
     unit_of_measurement: "°C"
