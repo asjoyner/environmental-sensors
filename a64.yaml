@@ -1328,15 +1328,15 @@ sensor:
     address: 0x30
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
+    unit_of_measurement: "°F"
     device_class: temperature
     state_class: measurement
-    accuracy_decimals: 2
+    accuracy_decimals: 1
     filters:
-      # -100C is the module's fault value for a channel it cannot read. Publish
-      # NaN instead so the entity goes unavailable, rather than dropping a
-      # plausible-looking -148F into HA and anything that averages it.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+      # The module reports in Celsius. Test for the -100C fault value BEFORE
+      # converting, then convert; NaN propagates through the arithmetic so a
+      # faulted channel still lands as unavailable rather than -148F.
+      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_probe_ch3"
@@ -1344,15 +1344,15 @@ sensor:
     address: 0x34
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
+    unit_of_measurement: "°F"
     device_class: temperature
     state_class: measurement
-    accuracy_decimals: 2
+    accuracy_decimals: 1
     filters:
-      # -100C is the module's fault value for a channel it cannot read. Publish
-      # NaN instead so the entity goes unavailable, rather than dropping a
-      # plausible-looking -148F into HA and anything that averages it.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+      # The module reports in Celsius. Test for the -100C fault value BEFORE
+      # converting, then convert; NaN propagates through the arithmetic so a
+      # faulted channel still lands as unavailable rather than -148F.
+      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_probe_ch5"
@@ -1360,15 +1360,15 @@ sensor:
     address: 0x38
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
+    unit_of_measurement: "°F"
     device_class: temperature
     state_class: measurement
-    accuracy_decimals: 2
+    accuracy_decimals: 1
     filters:
-      # -100C is the module's fault value for a channel it cannot read. Publish
-      # NaN instead so the entity goes unavailable, rather than dropping a
-      # plausible-looking -148F into HA and anything that averages it.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+      # The module reports in Celsius. Test for the -100C fault value BEFORE
+      # converting, then convert; NaN propagates through the arithmetic so a
+      # faulted channel still lands as unavailable rather than -148F.
+      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_probe_ch6"
@@ -1376,15 +1376,15 @@ sensor:
     address: 0x3a
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
+    unit_of_measurement: "°F"
     device_class: temperature
     state_class: measurement
-    accuracy_decimals: 2
+    accuracy_decimals: 1
     filters:
-      # -100C is the module's fault value for a channel it cannot read. Publish
-      # NaN instead so the entity goes unavailable, rather than dropping a
-      # plausible-looking -148F into HA and anything that averages it.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+      # The module reports in Celsius. Test for the -100C fault value BEFORE
+      # converting, then convert; NaN propagates through the arithmetic so a
+      # faulted channel still lands as unavailable rather than -148F.
+      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_probe_ch8"
@@ -1392,15 +1392,15 @@ sensor:
     address: 0x3e
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
+    unit_of_measurement: "°F"
     device_class: temperature
     state_class: measurement
-    accuracy_decimals: 2
+    accuracy_decimals: 1
     filters:
-      # -100C is the module's fault value for a channel it cannot read. Publish
-      # NaN instead so the entity goes unavailable, rather than dropping a
-      # plausible-looking -148F into HA and anything that averages it.
-      - lambda: 'return (x <= -99.0f) ? NAN : x;'
+      # The module reports in Celsius. Test for the -100C fault value BEFORE
+      # converting, then convert; NaN propagates through the arithmetic so a
+      # faulted channel still lands as unavailable rather than -148F.
+      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch1"
@@ -1408,9 +1408,15 @@ sensor:
     address: 0x30
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch2"
@@ -1418,9 +1424,15 @@ sensor:
     address: 0x32
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch3"
@@ -1428,9 +1440,15 @@ sensor:
     address: 0x34
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch4"
@@ -1438,9 +1456,15 @@ sensor:
     address: 0x36
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch5"
@@ -1448,9 +1472,15 @@ sensor:
     address: 0x38
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch6"
@@ -1458,9 +1488,15 @@ sensor:
     address: 0x3a
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch7"
@@ -1468,9 +1504,15 @@ sensor:
     address: 0x3c
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch8"
@@ -1478,6 +1520,12 @@ sensor:
     address: 0x3e
     register_type: holding
     value_type: FP32
-    unit_of_measurement: "°C"
-    accuracy_decimals: 2
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
     entity_category: diagnostic
+    # Unfiltered on purpose: a channel with no probe shows -148F, which is the
+    # module's -100C fault code converted. That is the tell for "module alive,
+    # channel dead" as opposed to every entity going unavailable when the
+    # module itself stops answering.
+    filters:
+      - lambda: 'return x * 1.8f + 32.0f;'
