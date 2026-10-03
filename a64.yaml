@@ -1334,10 +1334,21 @@ sensor:
     state_class: measurement
     accuracy_decimals: 1
     filters:
-      # The module reports in Celsius. Test for the -100C fault value BEFORE
-      # converting, then convert; NaN propagates through the arithmetic so a
-      # faulted channel still lands as unavailable rather than -148F.
-      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
+      # The module reports in Celsius. Test for fault values BEFORE converting,
+      # then convert; NaN propagates through the arithmetic so a faulted channel
+      # lands as unavailable rather than as a plausible temperature.
+      #   x <= -99C  : open circuit / no probe on this channel.
+      #   x ~= 0.00C : the module answered with an all-zero register block.
+      # The zero test was added 2026-10-03 after the CWT module stopped
+      # measuring for 100h (09-27 22:18 -> 10-02 03:23) and returned 0x0000 on
+      # every channel. ESPHome published that as 32.0F -- a physically possible
+      # number on indoor DHW plumbing only if the house is freezing -- so the
+      # dashboards showed 32F for four days and nothing alerted. The proof it
+      # was the module and not the probes: the UNUSED channels 2/4/7 moved from
+      # -148F (open circuit) to 32.0F, and an open circuit cannot read 0C.
+      # NOTE this catches 4 of the 5 probes seen in that fault; ch1 held a stale
+      # 47.4F instead of zero, which only the DhwProbeFrozen alert catches.
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "dhw_tank_outlet"
@@ -1351,10 +1362,21 @@ sensor:
     state_class: measurement
     accuracy_decimals: 1
     filters:
-      # The module reports in Celsius. Test for the -100C fault value BEFORE
-      # converting, then convert; NaN propagates through the arithmetic so a
-      # faulted channel still lands as unavailable rather than -148F.
-      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
+      # The module reports in Celsius. Test for fault values BEFORE converting,
+      # then convert; NaN propagates through the arithmetic so a faulted channel
+      # lands as unavailable rather than as a plausible temperature.
+      #   x <= -99C  : open circuit / no probe on this channel.
+      #   x ~= 0.00C : the module answered with an all-zero register block.
+      # The zero test was added 2026-10-03 after the CWT module stopped
+      # measuring for 100h (09-27 22:18 -> 10-02 03:23) and returned 0x0000 on
+      # every channel. ESPHome published that as 32.0F -- a physically possible
+      # number on indoor DHW plumbing only if the house is freezing -- so the
+      # dashboards showed 32F for four days and nothing alerted. The proof it
+      # was the module and not the probes: the UNUSED channels 2/4/7 moved from
+      # -148F (open circuit) to 32.0F, and an open circuit cannot read 0C.
+      # NOTE this catches 4 of the 5 probes seen in that fault; ch1 held a stale
+      # 47.4F instead of zero, which only the DhwProbeFrozen alert catches.
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "dhw_tankless_input"
@@ -1368,10 +1390,21 @@ sensor:
     state_class: measurement
     accuracy_decimals: 1
     filters:
-      # The module reports in Celsius. Test for the -100C fault value BEFORE
-      # converting, then convert; NaN propagates through the arithmetic so a
-      # faulted channel still lands as unavailable rather than -148F.
-      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
+      # The module reports in Celsius. Test for fault values BEFORE converting,
+      # then convert; NaN propagates through the arithmetic so a faulted channel
+      # lands as unavailable rather than as a plausible temperature.
+      #   x <= -99C  : open circuit / no probe on this channel.
+      #   x ~= 0.00C : the module answered with an all-zero register block.
+      # The zero test was added 2026-10-03 after the CWT module stopped
+      # measuring for 100h (09-27 22:18 -> 10-02 03:23) and returned 0x0000 on
+      # every channel. ESPHome published that as 32.0F -- a physically possible
+      # number on indoor DHW plumbing only if the house is freezing -- so the
+      # dashboards showed 32F for four days and nothing alerted. The proof it
+      # was the module and not the probes: the UNUSED channels 2/4/7 moved from
+      # -148F (open circuit) to 32.0F, and an open circuit cannot read 0C.
+      # NOTE this catches 4 of the 5 probes seen in that fault; ch1 held a stale
+      # 47.4F instead of zero, which only the DhwProbeFrozen alert catches.
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "dhw_tankless_output"
@@ -1385,10 +1418,21 @@ sensor:
     state_class: measurement
     accuracy_decimals: 1
     filters:
-      # The module reports in Celsius. Test for the -100C fault value BEFORE
-      # converting, then convert; NaN propagates through the arithmetic so a
-      # faulted channel still lands as unavailable rather than -148F.
-      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
+      # The module reports in Celsius. Test for fault values BEFORE converting,
+      # then convert; NaN propagates through the arithmetic so a faulted channel
+      # lands as unavailable rather than as a plausible temperature.
+      #   x <= -99C  : open circuit / no probe on this channel.
+      #   x ~= 0.00C : the module answered with an all-zero register block.
+      # The zero test was added 2026-10-03 after the CWT module stopped
+      # measuring for 100h (09-27 22:18 -> 10-02 03:23) and returned 0x0000 on
+      # every channel. ESPHome published that as 32.0F -- a physically possible
+      # number on indoor DHW plumbing only if the house is freezing -- so the
+      # dashboards showed 32F for four days and nothing alerted. The proof it
+      # was the module and not the probes: the UNUSED channels 2/4/7 moved from
+      # -148F (open circuit) to 32.0F, and an open circuit cannot read 0C.
+      # NOTE this catches 4 of the 5 probes seen in that fault; ch1 held a stale
+      # 47.4F instead of zero, which only the DhwProbeFrozen alert catches.
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "dhw_mixing_valve_output"
@@ -1402,10 +1446,21 @@ sensor:
     state_class: measurement
     accuracy_decimals: 1
     filters:
-      # The module reports in Celsius. Test for the -100C fault value BEFORE
-      # converting, then convert; NaN propagates through the arithmetic so a
-      # faulted channel still lands as unavailable rather than -148F.
-      - lambda: 'return (x <= -99.0f) ? NAN : (x * 1.8f + 32.0f);'
+      # The module reports in Celsius. Test for fault values BEFORE converting,
+      # then convert; NaN propagates through the arithmetic so a faulted channel
+      # lands as unavailable rather than as a plausible temperature.
+      #   x <= -99C  : open circuit / no probe on this channel.
+      #   x ~= 0.00C : the module answered with an all-zero register block.
+      # The zero test was added 2026-10-03 after the CWT module stopped
+      # measuring for 100h (09-27 22:18 -> 10-02 03:23) and returned 0x0000 on
+      # every channel. ESPHome published that as 32.0F -- a physically possible
+      # number on indoor DHW plumbing only if the house is freezing -- so the
+      # dashboards showed 32F for four days and nothing alerted. The proof it
+      # was the module and not the probes: the UNUSED channels 2/4/7 moved from
+      # -148F (open circuit) to 32.0F, and an open circuit cannot read 0C.
+      # NOTE this catches 4 of the 5 probes seen in that fault; ch1 held a stale
+      # 47.4F instead of zero, which only the DhwProbeFrozen alert catches.
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
   - platform: modbus_controller
     modbus_controller_id: ptmod
     name: "pt1000_raw_ch1"
