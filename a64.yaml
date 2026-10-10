@@ -22,6 +22,16 @@ ota:
 web_server:
   port: 80
 
+# Clock, from alfred's chrony (allow 10.0.32.0/21, listening on :123).
+# Added 2026-10-10 so the TUF-2000M flow meters can have their RTC set from a
+# real time source -- they keep their own calendar in REG0053-0055.
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: America/New_York
+    servers:
+      - 10.0.32.1
+
 prometheus:
 
 # i2c configuration for both buses
@@ -1285,10 +1295,55 @@ modbus:
 
 modbus_controller:
   - id: ptmod
-    address: 1          # module default; settable via register 0x10 hi byte
+    # Modbus ID 1 is CLAIMED by the CWT RTD module on this bus -- it is not just
+    # "the default". Anything else added here must be given a different ID
+    # BEFORE it is connected. The 4x TUF-2000M flow meters shipped defaulted to
+    # ID 1 and collided with this module from 2026-09-27 to 2026-10-07: the
+    # probes returned garbage (22164.8), then all-zeros (32F), then plausible
+    # but frozen values. A power cycle, a firmware replacement and an ESPHome
+    # upgrade all failed to fix it, because none of them could. The meters were
+    # moved to IDs 2-5 on 2026-10-07 and the probes recovered immediately.
+    # ID allocation on this bus: 1 = CWT-TM-8PT RTD, 2-5 = TUF-2000M flow.
+    address: 1          # settable via register 0x10 hi byte
     modbus_id: modbus_rs485
     update_interval: 30s
     command_throttle: 200ms
+    setup_priority: -10
+
+# TUF-2000M ultrasonic flow meters, IDs 2-5 (see the ID-allocation note above).
+#
+# Addressing: the manual's worked example reads "REG0001 to REG0010" as
+# `01 03 0000 000A`, so REG numbering is 1-based and wire address = REG - 1.
+#   Flow Rate        REG0001-0002 -> address 0   REAL4, m3/h
+#   Positive accum.  REG0009-0010 -> address 8   LONG
+#   Temp #1 inlet    REG0033-0034 -> address 32  REAL4, C
+#   Temp #2 outlet   REG0035-0036 -> address 34  REAL4, C
+#
+# The meters support ONLY function codes 3 and 6 (read registers / write a
+# SINGLE register) -- there is no write-multiple, which is why setting their
+# clock takes three separate FC6 writes.
+#
+# They also default to MODBUS-ASCII; ESPHome speaks RTU only, so each meter
+# must have window M63 set to RTU or it will never answer here.
+  - id: tuf2
+    address: 2
+    modbus_id: modbus_rs485
+    update_interval: 30s
+    setup_priority: -10
+  - id: tuf3
+    address: 3
+    modbus_id: modbus_rs485
+    update_interval: 30s
+    setup_priority: -10
+  - id: tuf4
+    address: 4
+    modbus_id: modbus_rs485
+    update_interval: 30s
+    setup_priority: -10
+  - id: tuf5
+    address: 5
+    modbus_id: modbus_rs485
+    update_interval: 30s
     setup_priority: -10
 
 sensor:
@@ -1589,3 +1644,408 @@ sensor:
     # module itself stops answering.
     filters:
       - lambda: 'return x * 1.8f + 32.0f;'
+
+# --- byte-order canary (temporary) -----------------------------------------
+# REG0007-0008 is "Fluid sound speed" REAL4 in m/s. Water is ~1480-1550 m/s, so
+# whichever of these two word orders lands in that band is the correct one for
+# every REAL4 register on these meters. This also proves the meter is actually
+# measuring the fluid rather than returning zeroed registers.
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_sound_fp32"
+    id: tuf2_sound_fp32
+    address: 6
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "m/s"
+    accuracy_decimals: 1
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_sound_fp32r"
+    id: tuf2_sound_fp32r
+    address: 6
+    register_type: holding
+    value_type: FP32_R
+    unit_of_measurement: "m/s"
+    accuracy_decimals: 1
+    entity_category: diagnostic
+
+# --- meter self-diagnostics -------------------------------------------------
+# REG0072 -> address 71. Error code bits, manual section 3.2:
+#   1 signal lower | 2 poor signal | 3 pipe empty | 4 hardware | 9 clock/calendar
+#   C temperature circuits | A parameter checksum | b software checksum
+# Reading this tells us WHY a meter reports zero flow instead of guessing.
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_error_code"
+    id: tuf2_error_code
+    address: 71
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: tuf3
+    name: "tuf3_error_code"
+    id: tuf3_error_code
+    address: 71
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: tuf4
+    name: "tuf4_error_code"
+    id: tuf4_error_code
+    address: 71
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_error_code"
+    id: tuf5_error_code
+    address: 71
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+# Raw calendar registers on one meter, so a clock write can be verified rather
+# than assumed. REG0053-0055 -> addresses 52-54, BCD, "SMHDMY lower byte first".
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_cal_sec_min"
+    id: tuf2_cal_sec_min
+    address: 52
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_cal_hour_day"
+    id: tuf2_cal_hour_day
+    address: 53
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_cal_mon_year"
+    id: tuf2_cal_mon_year
+    address: 54
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+# --- TUF-2000M id 2 -------------------------------------------------------
+# Named by MODBUS ID, not by location: the physical mapping of the four meters
+# to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
+# confirmed, and guessing it would silently mislabel the data. Rename to the
+# dashboard's naming contract once the mapping is verified at the meters.
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_flow_gpm"
+    id: tuf2_flow_gpm
+    address: 0            # REG0001-0002, REAL4, m3/h
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "gal/min"
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - lambda: 'return x * 4.402868f;'   # m3/h -> US gal/min
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_total_gal"
+    id: tuf2_total_gal
+    address: 8            # REG0009-0010, positive accumulator, LONG
+    register_type: holding
+    value_type: S_DWORD
+    unit_of_measurement: "gal"
+    state_class: total_increasing
+    accuracy_decimals: 0
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_inlet_temp"
+    id: tuf2_inlet_temp
+    address: 32           # REG0033-0034, PT100 inlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_outlet_temp"
+    id: tuf2_outlet_temp
+    address: 34           # REG0035-0036, PT100 outlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+
+# --- TUF-2000M id 3 -------------------------------------------------------
+# Named by MODBUS ID, not by location: the physical mapping of the four meters
+# to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
+# confirmed, and guessing it would silently mislabel the data. Rename to the
+# dashboard's naming contract once the mapping is verified at the meters.
+  - platform: modbus_controller
+    modbus_controller_id: tuf3
+    name: "tuf3_flow_gpm"
+    id: tuf3_flow_gpm
+    address: 0            # REG0001-0002, REAL4, m3/h
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "gal/min"
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - lambda: 'return x * 4.402868f;'   # m3/h -> US gal/min
+  - platform: modbus_controller
+    modbus_controller_id: tuf3
+    name: "tuf3_total_gal"
+    id: tuf3_total_gal
+    address: 8            # REG0009-0010, positive accumulator, LONG
+    register_type: holding
+    value_type: S_DWORD
+    unit_of_measurement: "gal"
+    state_class: total_increasing
+    accuracy_decimals: 0
+  - platform: modbus_controller
+    modbus_controller_id: tuf3
+    name: "tuf3_inlet_temp"
+    id: tuf3_inlet_temp
+    address: 32           # REG0033-0034, PT100 inlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+  - platform: modbus_controller
+    modbus_controller_id: tuf3
+    name: "tuf3_outlet_temp"
+    id: tuf3_outlet_temp
+    address: 34           # REG0035-0036, PT100 outlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+
+# --- TUF-2000M id 4 -------------------------------------------------------
+# Named by MODBUS ID, not by location: the physical mapping of the four meters
+# to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
+# confirmed, and guessing it would silently mislabel the data. Rename to the
+# dashboard's naming contract once the mapping is verified at the meters.
+  - platform: modbus_controller
+    modbus_controller_id: tuf4
+    name: "tuf4_flow_gpm"
+    id: tuf4_flow_gpm
+    address: 0            # REG0001-0002, REAL4, m3/h
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "gal/min"
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - lambda: 'return x * 4.402868f;'   # m3/h -> US gal/min
+  - platform: modbus_controller
+    modbus_controller_id: tuf4
+    name: "tuf4_total_gal"
+    id: tuf4_total_gal
+    address: 8            # REG0009-0010, positive accumulator, LONG
+    register_type: holding
+    value_type: S_DWORD
+    unit_of_measurement: "gal"
+    state_class: total_increasing
+    accuracy_decimals: 0
+  - platform: modbus_controller
+    modbus_controller_id: tuf4
+    name: "tuf4_inlet_temp"
+    id: tuf4_inlet_temp
+    address: 32           # REG0033-0034, PT100 inlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+  - platform: modbus_controller
+    modbus_controller_id: tuf4
+    name: "tuf4_outlet_temp"
+    id: tuf4_outlet_temp
+    address: 34           # REG0035-0036, PT100 outlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+
+# --- TUF-2000M id 5 -------------------------------------------------------
+# Named by MODBUS ID, not by location: the physical mapping of the four meters
+# to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
+# confirmed, and guessing it would silently mislabel the data. Rename to the
+# dashboard's naming contract once the mapping is verified at the meters.
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_flow_gpm"
+    id: tuf5_flow_gpm
+    address: 0            # REG0001-0002, REAL4, m3/h
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "gal/min"
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - lambda: 'return x * 4.402868f;'   # m3/h -> US gal/min
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_total_gal"
+    id: tuf5_total_gal
+    address: 8            # REG0009-0010, positive accumulator, LONG
+    register_type: holding
+    value_type: S_DWORD
+    unit_of_measurement: "gal"
+    state_class: total_increasing
+    accuracy_decimals: 0
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_inlet_temp"
+    id: tuf5_inlet_temp
+    address: 32           # REG0033-0034, PT100 inlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_outlet_temp"
+    id: tuf5_outlet_temp
+    address: 34           # REG0035-0036, PT100 outlet, REAL4, C
+    register_type: holding
+    value_type: FP32
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
+
+# Set each meter's RTC from the ESP32's SNTP clock (alfred, 10.0.32.1).
+# The meters support only FC6 (write a SINGLE register), so this is three
+# separate writes; the seconds field can therefore roll between them, which is
+# fine for a clock that is only used to timestamp its own logs.
+# Encoding per manual: 6 BCD bytes "SMHDMY, lower byte first" ->
+#   reg52 = (minute<<8)|second   reg53 = (day<<8)|hour   reg54 = (month<<8)|year%100
+button:
+  - platform: template
+    name: "tuf2_set_clock"
+    id: tuf2_set_clock
+    entity_category: config
+    on_press:
+      - lambda: |-
+          auto t = id(sntp_time).now();
+          if (!t.is_valid()) {
+            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+            return;
+          }
+          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          ESP_LOGI("tuf", "setting tuf2 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+          auto *c = id(tuf2);
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+  - platform: template
+    name: "tuf3_set_clock"
+    id: tuf3_set_clock
+    entity_category: config
+    on_press:
+      - lambda: |-
+          auto t = id(sntp_time).now();
+          if (!t.is_valid()) {
+            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+            return;
+          }
+          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          ESP_LOGI("tuf", "setting tuf3 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+          auto *c = id(tuf3);
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+  - platform: template
+    name: "tuf4_set_clock"
+    id: tuf4_set_clock
+    entity_category: config
+    on_press:
+      - lambda: |-
+          auto t = id(sntp_time).now();
+          if (!t.is_valid()) {
+            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+            return;
+          }
+          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          ESP_LOGI("tuf", "setting tuf4 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+          auto *c = id(tuf4);
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+  - platform: template
+    name: "tuf5_set_clock"
+    id: tuf5_set_clock
+    entity_category: config
+    on_press:
+      - lambda: |-
+          auto t = id(sntp_time).now();
+          if (!t.is_valid()) {
+            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+            return;
+          }
+          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          ESP_LOGI("tuf", "setting tuf5 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+          auto *c = id(tuf5);
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
