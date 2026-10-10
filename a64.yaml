@@ -1343,6 +1343,10 @@ modbus_controller:
   - id: tuf5
     address: 5
     modbus_id: modbus_rs485
+    # Commissioning note: drop to 5s while driving this meter's front panel over
+    # MODBUS -- the LCD buffer (REG0257) is the only feedback channel, and at 30s
+    # a keystroke cannot be verified before the next is sent. That cost an
+    # overwritten M11 value on 2026-10-10.
     update_interval: 30s
     setup_priority: -10
 
@@ -1742,7 +1746,7 @@ sensor:
     accuracy_decimals: 0
     entity_category: diagnostic
 
-# --- TUF-2000M id 2 -------------------------------------------------------
+# --- TUF-2000M id 2: Main inlet from the pump: feeds ALL indoor fixtures AND both hot water systems -------------------------------------------------------
 # Named by MODBUS ID, not by location: the physical mapping of the four meters
 # to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
 # confirmed, and guessing it would silently mislabel the data. Rename to the
@@ -1796,7 +1800,7 @@ sensor:
     filters:
       - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
 
-# --- TUF-2000M id 3 -------------------------------------------------------
+# --- TUF-2000M id 3: Hot water leaving the Apollo mixing valve (delivered hot) -------------------------------------------------------
 # Named by MODBUS ID, not by location: the physical mapping of the four meters
 # to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
 # confirmed, and guessing it would silently mislabel the data. Rename to the
@@ -1850,7 +1854,7 @@ sensor:
     filters:
       - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
 
-# --- TUF-2000M id 4 -------------------------------------------------------
+# --- TUF-2000M id 4: Rheem outlet into the mixing valve's cold port -------------------------------------------------------
 # Named by MODBUS ID, not by location: the physical mapping of the four meters
 # to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
 # confirmed, and guessing it would silently mislabel the data. Rename to the
@@ -1904,7 +1908,7 @@ sensor:
     filters:
       - lambda: 'return (x <= -99.0f || (x > -0.01f && x < 0.01f)) ? NAN : (x * 1.8f + 32.0f);'
 
-# --- TUF-2000M id 5 -------------------------------------------------------
+# --- TUF-2000M id 5: Cold water to the exterior hose bibs -------------------------------------------------------
 # Named by MODBUS ID, not by location: the physical mapping of the four meters
 # to main-cold / tank-to-mixing / mixing-output / hose-bibs is NOT yet
 # confirmed, and guessing it would silently mislabel the data. Rename to the
@@ -2049,3 +2053,50 @@ button:
           c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
           c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
           c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+
+
+# --- TUF-2000M id 5: remote front-panel control -----------------------------
+# The pipe parameters (M11 outer dia, M12 wall, M14 material, M15 material
+# sound speed, M16 liner, M20 liquid, M23 transducer, M24 mounting) have NO
+# writable MODBUS registers -- only "Inner pipe diameter" (REG0221) appears in
+# the table and it is not flagged Writable. They can however be driven through
+# the front panel remotely, because two registers ARE writable:
+#   REG0060 -> addr 59  "Go to Window #"
+#   REG0059 -> addr 58  "Key to input"
+# Key values (manual 7.4): 0-9 = 48..57, '.' = 58, back = 59, MENU = 60,
+# ENT = 61, UP/+ = 62, DOWN/- = 63.
+# REG0257-0288 is the LCD buffer, so every step can be VERIFIED on the display
+# instead of poked blind -- which matters because the option menus (M14/M16/
+# M20/M23/M24) are scrolled with UP/DOWN from an unknown starting position.
+text_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_lcd"
+    id: tuf5_lcd
+    address: 256          # REG0257, 32 registers = 64 bytes of LCD buffer
+    register_type: holding
+    response_size: 64
+    raw_encode: HEXBYTES
+    entity_category: diagnostic
+
+number:
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_goto_window"
+    id: tuf5_goto_window
+    address: 59           # REG0060
+    value_type: U_WORD
+    min_value: 0
+    max_value: 99
+    step: 1
+    entity_category: config
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_send_key"
+    id: tuf5_send_key
+    address: 58           # REG0059
+    value_type: U_WORD
+    min_value: 0
+    max_value: 255
+    step: 1
+    entity_category: config
