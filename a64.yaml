@@ -688,6 +688,12 @@ switch:
  
 # Individual inputs
 binary_sensor:
+  # Something answered on Modbus ID 1, which no device should use (see the ID
+  # plan at modbus_controller). Prometheus: ModbusId1Responding (ticket).
+  - platform: template
+    name: "modbus_id1_responding"
+    id: modbus_id1_responding
+    entity_category: diagnostic
   - platform: gpio
     name: "a64_input1"
     id: a64_input1
@@ -1303,16 +1309,21 @@ modbus:
 
 modbus_controller:
   - id: ptmod
-    # Modbus ID 1 is CLAIMED by the CWT RTD module on this bus -- it is not just
-    # "the default". Anything else added here must be given a different ID
+    # ID ALLOCATION on this bus: see docs/systems/plumbing.md "RS485 bus ID plan".
+    #   1 = never assigned: every device's factory default. Watched by bus_id1.
+    #   2-9 flow meters (TUF-2000M 2-5) | 10-19 temperature modules (this one = 10)
+    #   20-39 soil moisture | 40-239 future, one decade per device type
+    #   240-247 temporary, for commissioning | 0, 248-255 not valid Modbus IDs
+    # This module sat on ID 1 until 2026-10-28, so every new device that
+    # arrived on its factory ID 1 collided with it. History: Anything else added here must be given a different ID
     # BEFORE it is connected. The 4x TUF-2000M flow meters shipped defaulted to
     # ID 1 and collided with this module from 2026-09-27 to 2026-10-07: the
     # probes returned garbage (22164.8), then all-zeros (32F), then plausible
     # but frozen values. A power cycle, a firmware replacement and an ESPHome
     # upgrade all failed to fix it, because none of them could. The meters were
     # moved to IDs 2-5 on 2026-10-07 and the probes recovered immediately.
-    # ID allocation on this bus: 1 = CWT-TM-8PT RTD, 2-5 = TUF-2000M flow.
-    address: 1          # settable via register 0x10 hi byte
+    # The 2026-10-24 power cut reset meters 2-4 to ID 1 (no M26) and it happened again.
+    address: 10         # register 0x10: high byte = address, low byte = baud code
     modbus_id: modbus_rs485
     update_interval: 30s
     command_throttle: 200ms
@@ -1356,6 +1367,51 @@ modbus_controller:
     # a keystroke cannot be verified before the next is sent. That cost an
     # overwritten M11 value on 2026-10-10.
     update_interval: 30s
+    setup_priority: -10
+
+  # Slow pollers. ESPHome 2026.9 removed skip_updates; the replacement is a
+  # second controller on the same address with a longer interval. A device
+  # that does not answer costs a 2 s timeout (send_wait_time), so rarely
+  # needed reads live here, not on the 30 s controllers (a 30 s cycle already
+  # takes ~13.5 s of bus time, mostly the 600 ms turnaround per read).
+  #
+  # bus_id1: nothing should ever answer on ID 1. A response means someone
+  # connected a device on its factory ID (TufMeter/soil sensor/etc.), or a
+  # meter lost its settings. Feeds modbus_id1_responding and the
+  # ModbusId1Responding ticket. Also how the RTD module was moved off ID 1
+  # (rtd_move_to_id10 reads its register 0x10 through this controller).
+  - id: bus_id1
+    address: 1
+    modbus_id: modbus_rs485
+    update_interval: 15min
+    setup_priority: -10
+    on_offline:
+      then:
+        - lambda: |-
+            id(bus_id1_reg0).publish_state(NAN);
+            id(bus_id1_reg16).publish_state(NAN);
+            id(modbus_id1_responding).publish_state(false);
+  # Meter clocks, read every 15 min (tufN_clock_offset). The set-clock scripts
+  # call component.update on these right after writing.
+  - id: tuf2_clk
+    address: 2
+    modbus_id: modbus_rs485
+    update_interval: 15min
+    setup_priority: -10
+  - id: tuf3_clk
+    address: 3
+    modbus_id: modbus_rs485
+    update_interval: 15min
+    setup_priority: -10
+  - id: tuf4_clk
+    address: 4
+    modbus_id: modbus_rs485
+    update_interval: 15min
+    setup_priority: -10
+  - id: tuf5_clk
+    address: 5
+    modbus_id: modbus_rs485
+    update_interval: 15min
     setup_priority: -10
 
 sensor:
@@ -1724,13 +1780,40 @@ sensor:
     value_type: U_WORD
     accuracy_decimals: 0
     entity_category: diagnostic
+# ID-1 sentinel (bus_id1, 15 min). Register 0 is readable on nearly every
+# device; 0x10 is the RTD module's address/baud register. NaN when nothing
+# answers (bus_id1 on_offline).
+  - platform: modbus_controller
+    modbus_controller_id: bus_id1
+    name: "bus_id1_reg0"
+    id: bus_id1_reg0
+    address: 0
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    on_value:
+      then:
+        - lambda: 'if (!isnan(x)) id(modbus_id1_responding).publish_state(true);'
+  - platform: modbus_controller
+    modbus_controller_id: bus_id1
+    name: "bus_id1_reg16"
+    id: bus_id1_reg16
+    address: 16
+    register_type: holding
+    value_type: U_WORD
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    on_value:
+      then:
+        - lambda: 'if (!isnan(x)) id(modbus_id1_responding).publish_state(true);'
 # Clock offset per meter: the meter's calendar (REG0053-0055, one 6-byte RAW
 # read) minus the controller's SNTP time, in seconds; positive = meter ahead.
-# Read on every 30 s poll (2026.9 dropped skip_updates; the extra 3-register
-# read is negligible). Prometheus alert TufMeterClockDrift (ticket) fires past
-# 30 s; fix with the tufN_set_clock buttons. See tuf_clock.h.
+# Read every 15 min by the tufN_clk controllers. Prometheus alert
+# TufMeterClockDrift (ticket) fires past 30 s; fix with the tufN_set_clock
+# buttons. See tuf_clock.h.
   - platform: modbus_controller
-    modbus_controller_id: tuf2
+    modbus_controller_id: tuf2_clk
     name: "tuf2_clock_offset"
     id: tuf2_clock_offset
     address: 52
@@ -1742,7 +1825,7 @@ sensor:
     entity_category: diagnostic
     lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
   - platform: modbus_controller
-    modbus_controller_id: tuf3
+    modbus_controller_id: tuf3_clk
     name: "tuf3_clock_offset"
     id: tuf3_clock_offset
     address: 52
@@ -1754,7 +1837,7 @@ sensor:
     entity_category: diagnostic
     lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
   - platform: modbus_controller
-    modbus_controller_id: tuf4
+    modbus_controller_id: tuf4_clk
     name: "tuf4_clock_offset"
     id: tuf4_clock_offset
     address: 52
@@ -1766,7 +1849,7 @@ sensor:
     entity_category: diagnostic
     lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
   - platform: modbus_controller
-    modbus_controller_id: tuf5
+    modbus_controller_id: tuf5_clk
     name: "tuf5_clock_offset"
     id: tuf5_clock_offset
     address: 52
@@ -1780,7 +1863,7 @@ sensor:
 # Raw calendar registers on one meter, so a clock write can be verified rather
 # than assumed. REG0053-0055 -> addresses 52-54, BCD, "SMHDMY lower byte first".
   - platform: modbus_controller
-    modbus_controller_id: tuf2
+    modbus_controller_id: tuf2_clk
     name: "tuf2_cal_sec_min"
     id: tuf2_cal_sec_min
     address: 52
@@ -1789,7 +1872,7 @@ sensor:
     accuracy_decimals: 0
     entity_category: diagnostic
   - platform: modbus_controller
-    modbus_controller_id: tuf2
+    modbus_controller_id: tuf2_clk
     name: "tuf2_cal_hour_day"
     id: tuf2_cal_hour_day
     address: 53
@@ -1798,7 +1881,7 @@ sensor:
     accuracy_decimals: 0
     entity_category: diagnostic
   - platform: modbus_controller
-    modbus_controller_id: tuf2
+    modbus_controller_id: tuf2_clk
     name: "tuf2_cal_mon_year"
     id: tuf2_cal_mon_year
     address: 54
@@ -2034,91 +2117,177 @@ sensor:
 # against the meter's own date window, which is why the raw calendar registers
 # are exposed.
 button:
+  # One-shot: move the CWT-TM-8PT RTD module from Modbus ID 1 to 10 (ID plan).
+  # Register 0x10 = (address << 8) | baud code. Refuses unless the module
+  # answered on ID 1 with address byte 1, and keeps the baud byte. The
+  # module is polled at 10 (ptmod) from this firmware on.
+  - platform: template
+    name: "rtd_move_to_id10"
+    id: rtd_move_to_id10
+    entity_category: config
+    on_press:
+      - lambda: |-
+          float v = id(bus_id1_reg16).state;
+          if (isnan(v)) {
+            ESP_LOGW("bus", "rtd_move_to_id10: nothing read from ID 1 register 0x10 -- refusing");
+            return;
+          }
+          uint16_t r = (uint16_t) v;
+          if ((r >> 8) != 1) {
+            ESP_LOGW("bus", "rtd_move_to_id10: register 0x10 = 0x%04X, address byte is not 1 -- refusing", r);
+            return;
+          }
+          uint16_t w = (10 << 8) | (r & 0xFF);
+          ESP_LOGI("bus", "rtd_move_to_id10: writing 0x%04X (was 0x%04X) to ID 1 register 0x10", w, r);
+          auto *c = id(bus_id1);
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x10, w));
   - platform: template
     name: "tuf2_set_clock"
     id: tuf2_set_clock
     entity_category: config
     on_press:
-      - lambda: |-
-          auto t = id(sntp_time).now();
-          if (!t.is_valid()) {
-            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
-            return;
-          }
-          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
-          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
-          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
-          ESP_LOGI("tuf", "setting tuf2 clock to %04d-%02d-%02d %02d:%02d:%02d",
-                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
-          auto *c = id(tuf2);
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      - script.execute: tuf2_set_clock_script
   - platform: template
     name: "tuf3_set_clock"
     id: tuf3_set_clock
     entity_category: config
     on_press:
-      - lambda: |-
-          auto t = id(sntp_time).now();
-          if (!t.is_valid()) {
-            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
-            return;
-          }
-          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
-          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
-          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
-          ESP_LOGI("tuf", "setting tuf3 clock to %04d-%02d-%02d %02d:%02d:%02d",
-                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
-          auto *c = id(tuf3);
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      - script.execute: tuf3_set_clock_script
   - platform: template
     name: "tuf4_set_clock"
     id: tuf4_set_clock
     entity_category: config
     on_press:
-      - lambda: |-
-          auto t = id(sntp_time).now();
-          if (!t.is_valid()) {
-            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
-            return;
-          }
-          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
-          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
-          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
-          ESP_LOGI("tuf", "setting tuf4 clock to %04d-%02d-%02d %02d:%02d:%02d",
-                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
-          auto *c = id(tuf4);
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      - script.execute: tuf4_set_clock_script
   - platform: template
     name: "tuf5_set_clock"
     id: tuf5_set_clock
     entity_category: config
     on_press:
-      - lambda: |-
-          auto t = id(sntp_time).now();
-          if (!t.is_valid()) {
-            ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
-            return;
-          }
-          auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
-          uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
-          uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
-          ESP_LOGI("tuf", "setting tuf5 clock to %04d-%02d-%02d %02d:%02d:%02d",
-                   t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
-          auto *c = id(tuf5);
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      - script.execute: tuf5_set_clock_script
 
+
+script:
+  - id: tuf2_set_clock_script
+    mode: single
+    then:
+      # The three FC6 writes take ~2 s (600 ms turnaround each). Started late
+      # in a minute, the meter can roll over between them (writing min=59,
+      # then its own clock carries the hour, then we write the old hour = an
+      # hour off). So only start in seconds 0-50.
+      - wait_until:
+          condition:
+            lambda: 'auto t = id(sntp_time).now(); return t.is_valid() && t.second <= 50;'
+          timeout: 70s
+      - lambda: |-
+            auto t = id(sntp_time).now();
+            if (!t.is_valid()) {
+              ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+              return;
+            }
+            auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+            uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+            uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+            uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
+            ESP_LOGI("tuf", "setting tuf2 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                     t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+            auto *c = id(tuf2);
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      # Read the result back at once instead of waiting for the 15 min poll.
+      - delay: 5s
+      - component.update: tuf2_clk
+  - id: tuf3_set_clock_script
+    mode: single
+    then:
+      # The three FC6 writes take ~2 s (600 ms turnaround each). Started late
+      # in a minute, the meter can roll over between them (writing min=59,
+      # then its own clock carries the hour, then we write the old hour = an
+      # hour off). So only start in seconds 0-50.
+      - wait_until:
+          condition:
+            lambda: 'auto t = id(sntp_time).now(); return t.is_valid() && t.second <= 50;'
+          timeout: 70s
+      - lambda: |-
+            auto t = id(sntp_time).now();
+            if (!t.is_valid()) {
+              ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+              return;
+            }
+            auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+            uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+            uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+            uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
+            ESP_LOGI("tuf", "setting tuf3 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                     t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+            auto *c = id(tuf3);
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      # Read the result back at once instead of waiting for the 15 min poll.
+      - delay: 5s
+      - component.update: tuf3_clk
+  - id: tuf4_set_clock_script
+    mode: single
+    then:
+      # The three FC6 writes take ~2 s (600 ms turnaround each). Started late
+      # in a minute, the meter can roll over between them (writing min=59,
+      # then its own clock carries the hour, then we write the old hour = an
+      # hour off). So only start in seconds 0-50.
+      - wait_until:
+          condition:
+            lambda: 'auto t = id(sntp_time).now(); return t.is_valid() && t.second <= 50;'
+          timeout: 70s
+      - lambda: |-
+            auto t = id(sntp_time).now();
+            if (!t.is_valid()) {
+              ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+              return;
+            }
+            auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+            uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+            uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+            uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
+            ESP_LOGI("tuf", "setting tuf4 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                     t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+            auto *c = id(tuf4);
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      # Read the result back at once instead of waiting for the 15 min poll.
+      - delay: 5s
+      - component.update: tuf4_clk
+  - id: tuf5_set_clock_script
+    mode: single
+    then:
+      # The three FC6 writes take ~2 s (600 ms turnaround each). Started late
+      # in a minute, the meter can roll over between them (writing min=59,
+      # then its own clock carries the hour, then we write the old hour = an
+      # hour off). So only start in seconds 0-50.
+      - wait_until:
+          condition:
+            lambda: 'auto t = id(sntp_time).now(); return t.is_valid() && t.second <= 50;'
+          timeout: 70s
+      - lambda: |-
+            auto t = id(sntp_time).now();
+            if (!t.is_valid()) {
+              ESP_LOGW("tuf", "SNTP time not valid yet -- refusing to set meter clock");
+              return;
+            }
+            auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
+            uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
+            uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
+            uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
+            ESP_LOGI("tuf", "setting tuf5 clock to %04d-%02d-%02d %02d:%02d:%02d",
+                     t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
+            auto *c = id(tuf5);
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 52, r52));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 53, r53));
+            c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 54, r54));
+      # Read the result back at once instead of waiting for the 15 min poll.
+      - delay: 5s
+      - component.update: tuf5_clk
 
 # --- TUF-2000M id 5: remote front-panel control -----------------------------
 # The pipe parameters (M11 outer dia, M12 wall, M14 material, M15 material
