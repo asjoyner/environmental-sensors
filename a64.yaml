@@ -1,6 +1,8 @@
 esphome:
   name: door-switches
   friendly_name: Door Switches
+  includes:
+    - tuf_clock.h
 
 esp32:
   board: esp32dev
@@ -1716,6 +1718,62 @@ sensor:
     value_type: U_WORD
     accuracy_decimals: 0
     entity_category: diagnostic
+# Clock offset per meter: the meter's calendar (REG0053-0055, one 3-register
+# read) minus the controller's SNTP time, in seconds; positive = meter ahead.
+# Every 10th poll (5 min). Prometheus alert TufMeterClockDrift (ticket) fires
+# past 30 s; fix with the tufN_set_clock buttons. See tuf_clock.h.
+  - platform: modbus_controller
+    modbus_controller_id: tuf2
+    name: "tuf2_clock_offset"
+    id: tuf2_clock_offset
+    address: 52
+    register_count: 3
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 9
+    unit_of_measurement: s
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+  - platform: modbus_controller
+    modbus_controller_id: tuf3
+    name: "tuf3_clock_offset"
+    id: tuf3_clock_offset
+    address: 52
+    register_count: 3
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 9
+    unit_of_measurement: s
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+  - platform: modbus_controller
+    modbus_controller_id: tuf4
+    name: "tuf4_clock_offset"
+    id: tuf4_clock_offset
+    address: 52
+    register_count: 3
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 9
+    unit_of_measurement: s
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+  - platform: modbus_controller
+    modbus_controller_id: tuf5
+    name: "tuf5_clock_offset"
+    id: tuf5_clock_offset
+    address: 52
+    register_count: 3
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 9
+    unit_of_measurement: s
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
 # Raw calendar registers on one meter, so a clock write can be verified rather
 # than assumed. REG0053-0055 -> addresses 52-54, BCD, "SMHDMY lower byte first".
   - platform: modbus_controller
@@ -1967,7 +2025,11 @@ sensor:
 # separate writes; the seconds field can therefore roll between them, which is
 # fine for a clock that is only used to timestamp its own logs.
 # Encoding per manual: 6 BCD bytes "SMHDMY, lower byte first" ->
-#   reg52 = (minute<<8)|second   reg53 = (day<<8)|hour   reg54 = (month<<8)|year%100
+#   reg52 = (minute<<8)|second   reg53 = (day<<8)|hour   reg54 = (year%100<<8)|month
+# The month/year register is the one that is easy to get backwards: writing it
+# as (month<<8)|year put 10-26-10 on the display instead of 26-10-10. Verified
+# against the meter's own date window, which is why the raw calendar registers
+# are exposed.
 button:
   - platform: template
     name: "tuf2_set_clock"
@@ -1983,7 +2045,7 @@ button:
           auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
           uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
           uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
           ESP_LOGI("tuf", "setting tuf2 clock to %04d-%02d-%02d %02d:%02d:%02d",
                    t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
           auto *c = id(tuf2);
@@ -2004,7 +2066,7 @@ button:
           auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
           uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
           uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
           ESP_LOGI("tuf", "setting tuf3 clock to %04d-%02d-%02d %02d:%02d:%02d",
                    t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
           auto *c = id(tuf3);
@@ -2025,7 +2087,7 @@ button:
           auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
           uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
           uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
           ESP_LOGI("tuf", "setting tuf4 clock to %04d-%02d-%02d %02d:%02d:%02d",
                    t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
           auto *c = id(tuf4);
@@ -2046,7 +2108,7 @@ button:
           auto bcd = [](int v) -> uint16_t { return ((v / 10) << 4) | (v % 10); };
           uint16_t r52 = (bcd(t.minute) << 8) | bcd(t.second);
           uint16_t r53 = (bcd(t.day_of_month) << 8) | bcd(t.hour);
-          uint16_t r54 = (bcd(t.month) << 8) | bcd(t.year % 100);
+          uint16_t r54 = (bcd(t.year % 100) << 8) | bcd(t.month);   // year HIGH, month LOW (verified on the display 2026-10-10)
           ESP_LOGI("tuf", "setting tuf5 clock to %04d-%02d-%02d %02d:%02d:%02d",
                    t.year, t.month, t.day_of_month, t.hour, t.minute, t.second);
           auto *c = id(tuf5);
