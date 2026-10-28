@@ -8,7 +8,8 @@
 // reading meter 2 back after a set). The buttons write local time from SNTP,
 // so the offset compares against local time too.
 #include <cmath>
-#include <vector>
+#include <cstddef>
+#include <cstdint>
 #include "esphome/core/time.h"
 
 static int tuf_bcd(uint8_t b) {
@@ -28,8 +29,10 @@ static long tuf_days_from_civil(int y, int m, int d) {
 // Seconds the meter's clock is ahead of `now` (negative = behind). NAN while
 // SNTP isn't synced or when the registers aren't a valid BCD date; a meter
 // that reset to its factory date (2022-09-22) is valid and reads years behind.
-static float tuf_clock_offset(const std::vector<uint8_t> &data, size_t off, esphome::ESPTime now) {
-  if (!now.is_valid() || data.size() < off + 6)
+// Takes a pointer and length so it works with the lambda's `data` whether it
+// is a std::vector (ESPHome 2025) or a std::span (2026.9+).
+static float tuf_clock_offset(const uint8_t *data, size_t len, size_t off, esphome::ESPTime now) {
+  if (!now.is_valid() || len < off + 6)
     return NAN;
   const int mi = tuf_bcd(data[off]), se = tuf_bcd(data[off + 1]);
   const int da = tuf_bcd(data[off + 2]), ho = tuf_bcd(data[off + 3]);

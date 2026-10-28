@@ -1,6 +1,12 @@
+# Build with ESPHome 2026.9.1 (what built the firmware that ran from 10-10).
+# 2025.10.2 (this repo's .venv, flash.sh's pin) produces firmware that boot-
+# loops this board every ~40 s; that took the doors and DHW probes offline
+# for 47 min on 2026-10-28. min_version makes an older ESPHome refuse.
+#   ~/.cache/esphome-2026.9.1/bin/esphome run a64.yaml --device 10.0.32.107
 esphome:
   name: door-switches
   friendly_name: Door Switches
+  min_version: 2026.9.0
   includes:
     - tuf_clock.h
 
@@ -1718,62 +1724,59 @@ sensor:
     value_type: U_WORD
     accuracy_decimals: 0
     entity_category: diagnostic
-# Clock offset per meter: the meter's calendar (REG0053-0055, one 3-register
+# Clock offset per meter: the meter's calendar (REG0053-0055, one 6-byte RAW
 # read) minus the controller's SNTP time, in seconds; positive = meter ahead.
-# Every 10th poll (5 min). Prometheus alert TufMeterClockDrift (ticket) fires
-# past 30 s; fix with the tufN_set_clock buttons. See tuf_clock.h.
+# Read on every 30 s poll (2026.9 dropped skip_updates; the extra 3-register
+# read is negligible). Prometheus alert TufMeterClockDrift (ticket) fires past
+# 30 s; fix with the tufN_set_clock buttons. See tuf_clock.h.
   - platform: modbus_controller
     modbus_controller_id: tuf2
     name: "tuf2_clock_offset"
     id: tuf2_clock_offset
     address: 52
-    register_count: 3
     register_type: holding
-    value_type: U_WORD
-    skip_updates: 9
+    value_type: RAW
+    response_size: 6
     unit_of_measurement: s
     accuracy_decimals: 0
     entity_category: diagnostic
-    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+    lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
   - platform: modbus_controller
     modbus_controller_id: tuf3
     name: "tuf3_clock_offset"
     id: tuf3_clock_offset
     address: 52
-    register_count: 3
     register_type: holding
-    value_type: U_WORD
-    skip_updates: 9
+    value_type: RAW
+    response_size: 6
     unit_of_measurement: s
     accuracy_decimals: 0
     entity_category: diagnostic
-    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+    lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
   - platform: modbus_controller
     modbus_controller_id: tuf4
     name: "tuf4_clock_offset"
     id: tuf4_clock_offset
     address: 52
-    register_count: 3
     register_type: holding
-    value_type: U_WORD
-    skip_updates: 9
+    value_type: RAW
+    response_size: 6
     unit_of_measurement: s
     accuracy_decimals: 0
     entity_category: diagnostic
-    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+    lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
   - platform: modbus_controller
     modbus_controller_id: tuf5
     name: "tuf5_clock_offset"
     id: tuf5_clock_offset
     address: 52
-    register_count: 3
     register_type: holding
-    value_type: U_WORD
-    skip_updates: 9
+    value_type: RAW
+    response_size: 6
     unit_of_measurement: s
     accuracy_decimals: 0
     entity_category: diagnostic
-    lambda: return tuf_clock_offset(data, item->offset, id(sntp_time).now());
+    lambda: return tuf_clock_offset(data.data(), data.size(), item->offset, id(sntp_time).now());
 # Raw calendar registers on one meter, so a clock write can be verified rather
 # than assumed. REG0053-0055 -> addresses 52-54, BCD, "SMHDMY lower byte first".
   - platform: modbus_controller
