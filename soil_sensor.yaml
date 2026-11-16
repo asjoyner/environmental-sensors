@@ -1,0 +1,56 @@
+# One DFRobot SEN0601-style RS485 soil sensor (moisture, temperature, EC) on
+# the door-switches bus. Included once per sensor from a64.yaml:
+#
+#   packages:
+#     soil20: !include { file: soil_sensor.yaml, vars: { sid: "20" } }
+#
+# sid = the sensor's Modbus ID (soil range 20-39, docs/systems/plumbing.md).
+# Commission a new sensor with the soil_next_id / soil_move_id1_to_next_id
+# entities first, then add its line here and flash.
+#
+# Register map (DFRobot wiki, SEN0601): 0x0000 moisture x10 (%), 0x0001
+# temperature x10 (C, signed), 0x0002 conductivity (uS/cm), 0x07D0 address.
+modbus_controller:
+  - id: soil${sid}
+    address: ${sid}
+    modbus_id: modbus_rs485
+    update_interval: 5min
+    setup_priority: -10
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: soil${sid}
+    name: "soil${sid}_moisture"
+    id: soil${sid}_moisture
+    address: 0x0000
+    register_type: holding
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    device_class: moisture
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: soil${sid}
+    name: "soil${sid}_temperature"
+    id: soil${sid}_temperature
+    address: 0x0001
+    register_type: holding
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: soil${sid}
+    name: "soil${sid}_conductivity"
+    id: soil${sid}_conductivity
+    address: 0x0002
+    register_type: holding
+    value_type: U_WORD
+    unit_of_measurement: "µS/cm"
+    state_class: measurement
+    accuracy_decimals: 0
