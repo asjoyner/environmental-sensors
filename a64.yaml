@@ -1307,6 +1307,10 @@ modbus:
   id: modbus_rs485
   uart_id: uart_rs485
 
+# Soil sensors: one line per sensor, ID = its Modbus address (20-39).
+packages:
+  soil20: !include { file: soil_sensor.yaml, vars: { sid: "20" } }
+
 modbus_controller:
   - id: ptmod
     # ID ALLOCATION on this bus: see docs/systems/plumbing.md "RS485 bus ID plan".
@@ -1392,12 +1396,6 @@ modbus_controller:
             id(bus_id1_reg16).publish_state(NAN);
             id(modbus_id1_responding).publish_state(false);
             id(bus_id1_reg2000).publish_state(NAN);
-  # Soil sensors, IDs 20-39 (see the ID plan above). 5 min is plenty for soil.
-  - id: soil20
-    address: 20
-    modbus_id: modbus_rs485
-    update_interval: 5min
-    setup_priority: -10
   # Meter clocks, read every 15 min (tufN_clock_offset). The set-clock scripts
   # call component.update on these right after writing.
   - id: tuf2_clk
@@ -1826,46 +1824,6 @@ sensor:
     value_type: U_WORD
     accuracy_decimals: 0
     entity_category: diagnostic
-  # DFRobot SEN0601 soil sensor (moisture, temperature, EC) at ID 20, the first
-  # soil ID in the bus plan (docs/systems/plumbing.md). Register map from the
-  # DFRobot wiki: 0x0000 moisture x10 (%), 0x0001 temperature x10 (C, signed),
-  # 0x0002 conductivity (uS/cm). Polled every 5 min (soil20 controller).
-  - platform: modbus_controller
-    modbus_controller_id: soil20
-    name: "soil20_moisture"
-    id: soil20_moisture
-    address: 0x0000
-    register_type: holding
-    value_type: U_WORD
-    unit_of_measurement: "%"
-    device_class: moisture
-    state_class: measurement
-    accuracy_decimals: 1
-    filters:
-      - multiply: 0.1
-  - platform: modbus_controller
-    modbus_controller_id: soil20
-    name: "soil20_temperature"
-    id: soil20_temperature
-    address: 0x0001
-    register_type: holding
-    value_type: S_WORD
-    unit_of_measurement: "°C"
-    device_class: temperature
-    state_class: measurement
-    accuracy_decimals: 1
-    filters:
-      - multiply: 0.1
-  - platform: modbus_controller
-    modbus_controller_id: soil20
-    name: "soil20_conductivity"
-    id: soil20_conductivity
-    address: 0x0002
-    register_type: holding
-    value_type: U_WORD
-    unit_of_measurement: "µS/cm"
-    state_class: measurement
-    accuracy_decimals: 0
 # Clock offset per meter: the meter's calendar (REG0053-0055, one 6-byte RAW
 # read) minus the controller's SNTP time, in seconds; positive = meter ahead.
 # Read every 15 min by the tufN_clk controllers. Prometheus alert
@@ -2200,30 +2158,37 @@ button:
           ESP_LOGI("bus", "rtd_move_to_id10: writing 0x%04X (was 0x%04X) to ID 1 register 0x10", w, r);
           auto *c = id(bus_id1);
           c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x10, w));
-  # Moves a SEN0601-style soil sensor from its factory ID 1 to 20 by writing
-  # 20 to holding register 0x07D0 (FC6). Refuses unless the last read of ID 1
-  # register 0x07D0 returned exactly 1, and register 0x10 does not look like the
-  # CWT RTD module (high byte = its own address). Press once, then watch
-  # soil20_* come alive and bus_id1 go quiet (may need a sensor power cycle).
+  # Commissions a SEN0601-style soil sensor: moves it from its factory ID 1 to
+  # the ID in soil_next_id (20-39) by writing that ID to holding register
+  # 0x07D0 (FC6). Refuses unless the last read of ID 1 register 0x07D0 returned
+  # exactly 1, and register 0x10 does not look like the CWT RTD module (high
+  # byte = its own address). Then add the sensor's line to `packages:` (one
+  # soil_sensor.yaml include per ID) and flash. The sensor may need a power
+  # cycle before it answers on the new ID.
   - platform: template
-    name: "soil_move_id1_to_id20"
-    id: soil_move_id1_to_id20
+    name: "soil_move_id1_to_next_id"
+    id: soil_move_id1_to_next_id
     entity_category: config
     on_press:
       - lambda: |-
           float a = id(bus_id1_reg2000).state;
           float r16 = id(bus_id1_reg16).state;
+          int target = (int) id(soil_next_id).state;
+          if (target < 20 || target > 39) {
+            ESP_LOGW("bus", "soil_move_id1_to_next_id: soil_next_id %d outside 20-39 -- refusing", target);
+            return;
+          }
           if (isnan(a) || (uint16_t) a != 1) {
-            ESP_LOGW("bus", "soil_move_id1_to_id20: ID 1 reg 0x07D0 = %f, expected 1 -- refusing", a);
+            ESP_LOGW("bus", "soil_move_id1_to_next_id: ID 1 reg 0x07D0 = %f, expected 1 -- refusing", a);
             return;
           }
           if (!isnan(r16) && (((uint16_t) r16) >> 8) == 1) {
-            ESP_LOGW("bus", "soil_move_id1_to_id20: ID 1 reg 0x10 = 0x%04X looks like an RTD module -- refusing", (uint16_t) r16);
+            ESP_LOGW("bus", "soil_move_id1_to_next_id: ID 1 reg 0x10 = 0x%04X looks like an RTD module -- refusing", (uint16_t) r16);
             return;
           }
-          ESP_LOGI("bus", "soil_move_id1_to_id20: writing 20 to ID 1 register 0x07D0");
+          ESP_LOGI("bus", "soil_move_id1_to_next_id: writing %d to ID 1 register 0x07D0", target);
           auto *c = id(bus_id1);
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x07D0, 20));
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x07D0, (uint16_t) target));
   - platform: template
     name: "tuf2_set_clock"
     id: tuf2_set_clock
@@ -2397,6 +2362,18 @@ text_sensor:
     entity_category: diagnostic
 
 number:
+  # Target Modbus ID for soil_move_id1_to_next_id (soil range 20-39).
+  - platform: template
+    name: "soil_next_id"
+    id: soil_next_id
+    optimistic: true
+    restore_value: true
+    initial_value: 20
+    min_value: 20
+    max_value: 39
+    step: 1
+    mode: box
+    entity_category: config
   - platform: modbus_controller
     modbus_controller_id: tuf5
     name: "tuf5_goto_window"
