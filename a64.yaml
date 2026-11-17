@@ -1307,17 +1307,13 @@ modbus:
   id: modbus_rs485
   uart_id: uart_rs485
 
-# Soil sensors: one line per sensor, ID = its Modbus address (20-39).
-packages:
-  soil20: !include { file: soil_sensor.yaml, vars: { sid: "20" } }
-  soil21: !include { file: soil_sensor.yaml, vars: { sid: "21" } }
-  soil22: !include { file: soil_sensor.yaml, vars: { sid: "22" } }
-  soil23: !include { file: soil_sensor.yaml, vars: { sid: "23" } }
-  soil24: !include { file: soil_sensor.yaml, vars: { sid: "24" } }
-  soil25: !include { file: soil_sensor.yaml, vars: { sid: "25" } }
-  soil26: !include { file: soil_sensor.yaml, vars: { sid: "26" } }
-  soil27: !include { file: soil_sensor.yaml, vars: { sid: "27" } }
-  soil28: !include { file: soil_sensor.yaml, vars: { sid: "28" } }
+# Soil sensors: one line per commissioned, CONNECTED sensor (ID = its Modbus
+# address, 20-39). Uncomment `packages:` with the first one, e.g.
+# packages:
+#   soil20: !include { file: soil_sensor.yaml, vars: { sid: "20" } }
+# None for now (2026-11-17): soil20 is disconnected and the rest are not
+# installed yet. An absent device costs a ~2 s Modbus timeout per poll, which
+# delays every other device on the bus, so only list sensors that are wired.
 
 modbus_controller:
   - id: ptmod
@@ -2223,7 +2219,12 @@ script:
           id(bus_id1_reg16).publish_state(NAN);
           id(bus_id1_reg2000).publish_state(NAN);
       - component.update: bus_id1
-      - delay: 3s
+      # Wait for the answer rather than a fixed time: the read can sit behind
+      # other polls in the bus queue (each absent device costs ~2 s).
+      - wait_until:
+          condition:
+            lambda: 'return !isnan(id(bus_id1_reg2000).state);'
+          timeout: 20s
       - lambda: |-
           ESP_LOGI("bus", "bus_id1_probe: reg 0x07D0 = %f, reg 0x10 = %f",
                    id(bus_id1_reg2000).state, id(bus_id1_reg16).state);
