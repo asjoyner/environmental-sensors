@@ -1310,6 +1310,14 @@ modbus:
 # Soil sensors: one line per sensor, ID = its Modbus address (20-39).
 packages:
   soil20: !include { file: soil_sensor.yaml, vars: { sid: "20" } }
+  soil21: !include { file: soil_sensor.yaml, vars: { sid: "21" } }
+  soil22: !include { file: soil_sensor.yaml, vars: { sid: "22" } }
+  soil23: !include { file: soil_sensor.yaml, vars: { sid: "23" } }
+  soil24: !include { file: soil_sensor.yaml, vars: { sid: "24" } }
+  soil25: !include { file: soil_sensor.yaml, vars: { sid: "25" } }
+  soil26: !include { file: soil_sensor.yaml, vars: { sid: "26" } }
+  soil27: !include { file: soil_sensor.yaml, vars: { sid: "27" } }
+  soil28: !include { file: soil_sensor.yaml, vars: { sid: "28" } }
 
 modbus_controller:
   - id: ptmod
@@ -2170,25 +2178,14 @@ button:
     id: soil_move_id1_to_next_id
     entity_category: config
     on_press:
-      - lambda: |-
-          float a = id(bus_id1_reg2000).state;
-          float r16 = id(bus_id1_reg16).state;
-          int target = (int) id(soil_next_id).state;
-          if (target < 20 || target > 39) {
-            ESP_LOGW("bus", "soil_move_id1_to_next_id: soil_next_id %d outside 20-39 -- refusing", target);
-            return;
-          }
-          if (isnan(a) || (uint16_t) a != 1) {
-            ESP_LOGW("bus", "soil_move_id1_to_next_id: ID 1 reg 0x07D0 = %f, expected 1 -- refusing", a);
-            return;
-          }
-          if (!isnan(r16) && (((uint16_t) r16) >> 8) == 1) {
-            ESP_LOGW("bus", "soil_move_id1_to_next_id: ID 1 reg 0x10 = 0x%04X looks like an RTD module -- refusing", (uint16_t) r16);
-            return;
-          }
-          ESP_LOGI("bus", "soil_move_id1_to_next_id: writing %d to ID 1 register 0x07D0", target);
-          auto *c = id(bus_id1);
-          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x07D0, (uint16_t) target));
+      - script.execute: soil_commission
+  # Polls ID 1 now instead of waiting for its 15-min interval (read-only).
+  - platform: template
+    name: "bus_id1_probe"
+    id: bus_id1_probe
+    entity_category: config
+    on_press:
+      - script.execute: bus_id1_probe_script
   - platform: template
     name: "tuf2_set_clock"
     id: tuf2_set_clock
@@ -2216,6 +2213,56 @@ button:
 
 
 script:
+  # Fresh read of ID 1: clear the cached values first, so a stale reading from
+  # the previous sensor can never be acted on, then poll and give the bus time.
+  - id: bus_id1_probe_script
+    mode: single
+    then:
+      - lambda: |-
+          id(bus_id1_reg0).publish_state(NAN);
+          id(bus_id1_reg16).publish_state(NAN);
+          id(bus_id1_reg2000).publish_state(NAN);
+      - component.update: bus_id1
+      - delay: 3s
+      - lambda: |-
+          ESP_LOGI("bus", "bus_id1_probe: reg 0x07D0 = %f, reg 0x10 = %f",
+                   id(bus_id1_reg2000).state, id(bus_id1_reg16).state);
+  # Commissions one SEN0601-style soil sensor sitting on factory ID 1: probes ID
+  # 1 now, refuses unless that fresh read of register 0x07D0 is exactly 1 and
+  # register 0x10 does not look like the CWT RTD module, writes soil_next_id to
+  # 0x07D0, then advances soil_next_id so the next sensor gets the next ID.
+  # One new sensor on the bus at a time: two on ID 1 answer at once.
+  - id: soil_commission
+    mode: single
+    then:
+      - script.execute: bus_id1_probe_script
+      - script.wait: bus_id1_probe_script
+      - lambda: |-
+          float a = id(bus_id1_reg2000).state;
+          float r16 = id(bus_id1_reg16).state;
+          int target = (int) id(soil_next_id).state;
+          if (target < 20 || target > 39) {
+            ESP_LOGW("bus", "soil_commission: soil_next_id %d outside 20-39 -- refusing", target);
+            return;
+          }
+          if (isnan(a) || (uint16_t) a != 1) {
+            ESP_LOGW("bus", "soil_commission: fresh read of ID 1 reg 0x07D0 = %f, expected 1 -- refusing (nothing new on ID 1?)", a);
+            return;
+          }
+          if (!isnan(r16) && (((uint16_t) r16) >> 8) == 1) {
+            ESP_LOGW("bus", "soil_commission: ID 1 reg 0x10 = 0x%04X looks like an RTD module -- refusing", (uint16_t) r16);
+            return;
+          }
+          ESP_LOGI("bus", "soil_commission: writing %d to ID 1 register 0x07D0", target);
+          auto *c = id(bus_id1);
+          c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x07D0, (uint16_t) target));
+          // Never reuse this reading, and line up the next sensor's ID.
+          id(bus_id1_reg2000).publish_state(NAN);
+          if (target < 39) {
+            auto call = id(soil_next_id).make_call();
+            call.set_value(target + 1);
+            call.perform();
+          }
   - id: tuf2_set_clock_script
     mode: single
     then:
