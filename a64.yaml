@@ -1448,6 +1448,14 @@ modbus_controller:
     setup_priority: -10
 
 sensor:
+  # Address reported by soil_check_id at the last soil_check_readback press
+  # (empty = no answer). Diagnostic, published only by soil_check_script.
+  - platform: template
+    name: "soil_check_result"
+    id: soil_check_result
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: never
   - platform: adc
     pin: 39
     name: "presence_sensor_bus_voltage"
@@ -2201,6 +2209,12 @@ button:
       - script.execute: soil_commission
   # Polls ID 1 now instead of waiting for its 15-min interval (read-only).
   - platform: template
+    name: "soil_check_readback"
+    id: soil_check_readback
+    entity_category: config
+    on_press:
+      - script.execute: soil_check_script
+  - platform: template
     name: "bus_id1_probe"
     id: bus_id1_probe
     entity_category: config
@@ -2241,6 +2255,65 @@ globals:
     initial_value: "nullptr"
 
 script:
+  # Polls the read-back controller for one soil ID once (soil_verify.yaml) and
+  # waits up to 20 s for its address register. Result in soil_verify_sensor.
+  - id: soil_verify_poll
+    mode: single
+    parameters:
+      sid: int
+    then:
+      - lambda: |-
+          esphome::modbus_controller::ModbusController *c = nullptr;
+          esphome::sensor::Sensor *s = nullptr;
+          switch (sid) {
+            case 20: c = id(soilv20); s = id(soilv20_addr); break;
+            case 21: c = id(soilv21); s = id(soilv21_addr); break;
+            case 22: c = id(soilv22); s = id(soilv22_addr); break;
+            case 23: c = id(soilv23); s = id(soilv23_addr); break;
+            case 24: c = id(soilv24); s = id(soilv24_addr); break;
+            case 25: c = id(soilv25); s = id(soilv25_addr); break;
+            case 26: c = id(soilv26); s = id(soilv26_addr); break;
+            case 27: c = id(soilv27); s = id(soilv27_addr); break;
+            case 28: c = id(soilv28); s = id(soilv28_addr); break;
+            case 29: c = id(soilv29); s = id(soilv29_addr); break;
+            case 30: c = id(soilv30); s = id(soilv30_addr); break;
+            case 31: c = id(soilv31); s = id(soilv31_addr); break;
+            case 32: c = id(soilv32); s = id(soilv32_addr); break;
+            case 33: c = id(soilv33); s = id(soilv33_addr); break;
+            case 34: c = id(soilv34); s = id(soilv34_addr); break;
+            case 35: c = id(soilv35); s = id(soilv35_addr); break;
+            case 36: c = id(soilv36); s = id(soilv36_addr); break;
+            case 37: c = id(soilv37); s = id(soilv37_addr); break;
+            case 38: c = id(soilv38); s = id(soilv38_addr); break;
+            case 39: c = id(soilv39); s = id(soilv39_addr); break;
+            default: break;
+          }
+          id(soil_verify_sensor) = s;
+          if (s != nullptr) {
+            s->publish_state(NAN);
+            c->update();
+          }
+      - wait_until:
+          condition:
+            lambda: 'return id(soil_verify_sensor) == nullptr || !isnan(id(soil_verify_sensor)->state);'
+          timeout: 20s
+  # Read-back check of any soil ID (soil_check_id) on demand: publishes the
+  # address the sensor reports, or nothing if it does not answer. Read-only.
+  - id: soil_check_script
+    mode: single
+    then:
+      - script.execute:
+          id: soil_verify_poll
+          sid: !lambda 'return (int) id(soil_check_id).state;'
+      - script.wait: soil_verify_poll
+      - lambda: |-
+          int sid = (int) id(soil_check_id).state;
+          esphome::sensor::Sensor *s = id(soil_verify_sensor);
+          float got = s == nullptr ? NAN : s->state;
+          id(soil_verify_sensor) = nullptr;
+          id(soil_check_result).publish_state(got);
+          if (isnan(got)) ESP_LOGW("bus", "soil_check: no answer on ID %d", sid);
+          else ESP_LOGI("bus", "soil_check: ID %d answers, address register = %d%s", sid, (int) got, (int) got == sid ? "" : " (MISMATCH)");
   # Fresh read of ID 1: clear the cached values first, so a stale reading from
   # the previous sensor can never be acted on, then poll and give the bus time.
   - id: bus_id1_probe_script
@@ -2298,42 +2371,10 @@ script:
             lambda: 'return id(soil_verify_target) > 0;'
           then:
             - delay: 2s
-            # Poll only the read-back controller for the new ID.
-            - lambda: |-
-                esphome::modbus_controller::ModbusController *c = nullptr;
-                esphome::sensor::Sensor *s = nullptr;
-                switch (id(soil_verify_target)) {
-                  case 20: c = id(soilv20); s = id(soilv20_addr); break;
-                  case 21: c = id(soilv21); s = id(soilv21_addr); break;
-                  case 22: c = id(soilv22); s = id(soilv22_addr); break;
-                  case 23: c = id(soilv23); s = id(soilv23_addr); break;
-                  case 24: c = id(soilv24); s = id(soilv24_addr); break;
-                  case 25: c = id(soilv25); s = id(soilv25_addr); break;
-                  case 26: c = id(soilv26); s = id(soilv26_addr); break;
-                  case 27: c = id(soilv27); s = id(soilv27_addr); break;
-                  case 28: c = id(soilv28); s = id(soilv28_addr); break;
-                  case 29: c = id(soilv29); s = id(soilv29_addr); break;
-                  case 30: c = id(soilv30); s = id(soilv30_addr); break;
-                  case 31: c = id(soilv31); s = id(soilv31_addr); break;
-                  case 32: c = id(soilv32); s = id(soilv32_addr); break;
-                  case 33: c = id(soilv33); s = id(soilv33_addr); break;
-                  case 34: c = id(soilv34); s = id(soilv34_addr); break;
-                  case 35: c = id(soilv35); s = id(soilv35_addr); break;
-                  case 36: c = id(soilv36); s = id(soilv36_addr); break;
-                  case 37: c = id(soilv37); s = id(soilv37_addr); break;
-                  case 38: c = id(soilv38); s = id(soilv38_addr); break;
-                  case 39: c = id(soilv39); s = id(soilv39_addr); break;
-                  default: break;
-                }
-                id(soil_verify_sensor) = s;
-                if (s != nullptr) {
-                  s->publish_state(NAN);
-                  c->update();
-                }
-            - wait_until:
-                condition:
-                  lambda: 'return id(soil_verify_sensor) == nullptr || !isnan(id(soil_verify_sensor)->state);'
-                timeout: 20s
+            - script.execute:
+                id: soil_verify_poll
+                sid: !lambda 'return id(soil_verify_target);'
+            - script.wait: soil_verify_poll
             - lambda: |-
                 int target = id(soil_verify_target);
                 esphome::sensor::Sensor *s = id(soil_verify_sensor);
@@ -2496,6 +2537,18 @@ text_sensor:
     entity_category: diagnostic
 
 number:
+  # Soil ID for soil_check_readback (read-only check of a commissioned sensor).
+  - platform: template
+    name: "soil_check_id"
+    id: soil_check_id
+    optimistic: true
+    restore_value: true
+    initial_value: 21
+    min_value: 20
+    max_value: 39
+    step: 1
+    mode: box
+    entity_category: config
   # Target Modbus ID for soil_move_id1_to_next_id (soil range 20-39).
   - platform: template
     name: "soil_next_id"
