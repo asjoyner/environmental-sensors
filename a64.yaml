@@ -1314,6 +1314,30 @@ modbus:
 # None for now (2026-11-17): soil20 is disconnected and the rest are not
 # installed yet. An absent device costs a ~2 s Modbus timeout per poll, which
 # delays every other device on the bus, so only list sensors that are wired.
+#
+# Read-back controllers for soil_commission (soil_verify.yaml): never polled on
+# their own, so they cost nothing until a commission verifies one ID.
+packages:
+  soilv20: !include { file: soil_verify.yaml, vars: { sid: "20" } }
+  soilv21: !include { file: soil_verify.yaml, vars: { sid: "21" } }
+  soilv22: !include { file: soil_verify.yaml, vars: { sid: "22" } }
+  soilv23: !include { file: soil_verify.yaml, vars: { sid: "23" } }
+  soilv24: !include { file: soil_verify.yaml, vars: { sid: "24" } }
+  soilv25: !include { file: soil_verify.yaml, vars: { sid: "25" } }
+  soilv26: !include { file: soil_verify.yaml, vars: { sid: "26" } }
+  soilv27: !include { file: soil_verify.yaml, vars: { sid: "27" } }
+  soilv28: !include { file: soil_verify.yaml, vars: { sid: "28" } }
+  soilv29: !include { file: soil_verify.yaml, vars: { sid: "29" } }
+  soilv30: !include { file: soil_verify.yaml, vars: { sid: "30" } }
+  soilv31: !include { file: soil_verify.yaml, vars: { sid: "31" } }
+  soilv32: !include { file: soil_verify.yaml, vars: { sid: "32" } }
+  soilv33: !include { file: soil_verify.yaml, vars: { sid: "33" } }
+  soilv34: !include { file: soil_verify.yaml, vars: { sid: "34" } }
+  soilv35: !include { file: soil_verify.yaml, vars: { sid: "35" } }
+  soilv36: !include { file: soil_verify.yaml, vars: { sid: "36" } }
+  soilv37: !include { file: soil_verify.yaml, vars: { sid: "37" } }
+  soilv38: !include { file: soil_verify.yaml, vars: { sid: "38" } }
+  soilv39: !include { file: soil_verify.yaml, vars: { sid: "39" } }
 
 modbus_controller:
   - id: ptmod
@@ -2208,6 +2232,14 @@ button:
       - script.execute: tuf5_set_clock_script
 
 
+globals:
+  - id: soil_verify_target
+    type: int
+    initial_value: "0"
+  - id: soil_verify_sensor
+    type: esphome::sensor::Sensor*
+    initial_value: "nullptr"
+
 script:
   # Fresh read of ID 1: clear the cached values first, so a stale reading from
   # the previous sensor can never be acted on, then poll and give the bus time.
@@ -2236,6 +2268,7 @@ script:
   - id: soil_commission
     mode: single
     then:
+      - lambda: 'id(soil_verify_target) = 0;'
       - script.execute: bus_id1_probe_script
       - script.wait: bus_id1_probe_script
       - lambda: |-
@@ -2257,13 +2290,66 @@ script:
           ESP_LOGI("bus", "soil_commission: writing %d to ID 1 register 0x07D0", target);
           auto *c = id(bus_id1);
           c->queue_command(esphome::modbus_controller::ModbusCommandItem::create_write_single_command(c, 0x07D0, (uint16_t) target));
-          // Never reuse this reading, and line up the next sensor's ID.
+          // Never reuse this reading; verify at the new ID before advancing.
           id(bus_id1_reg2000).publish_state(NAN);
-          if (target < 39) {
-            auto call = id(soil_next_id).make_call();
-            call.set_value(target + 1);
-            call.perform();
-          }
+          id(soil_verify_target) = target;
+      - if:
+          condition:
+            lambda: 'return id(soil_verify_target) > 0;'
+          then:
+            - delay: 2s
+            # Poll only the read-back controller for the new ID.
+            - lambda: |-
+                esphome::modbus_controller::ModbusController *c = nullptr;
+                esphome::sensor::Sensor *s = nullptr;
+                switch (id(soil_verify_target)) {
+                  case 20: c = id(soilv20); s = id(soilv20_addr); break;
+                  case 21: c = id(soilv21); s = id(soilv21_addr); break;
+                  case 22: c = id(soilv22); s = id(soilv22_addr); break;
+                  case 23: c = id(soilv23); s = id(soilv23_addr); break;
+                  case 24: c = id(soilv24); s = id(soilv24_addr); break;
+                  case 25: c = id(soilv25); s = id(soilv25_addr); break;
+                  case 26: c = id(soilv26); s = id(soilv26_addr); break;
+                  case 27: c = id(soilv27); s = id(soilv27_addr); break;
+                  case 28: c = id(soilv28); s = id(soilv28_addr); break;
+                  case 29: c = id(soilv29); s = id(soilv29_addr); break;
+                  case 30: c = id(soilv30); s = id(soilv30_addr); break;
+                  case 31: c = id(soilv31); s = id(soilv31_addr); break;
+                  case 32: c = id(soilv32); s = id(soilv32_addr); break;
+                  case 33: c = id(soilv33); s = id(soilv33_addr); break;
+                  case 34: c = id(soilv34); s = id(soilv34_addr); break;
+                  case 35: c = id(soilv35); s = id(soilv35_addr); break;
+                  case 36: c = id(soilv36); s = id(soilv36_addr); break;
+                  case 37: c = id(soilv37); s = id(soilv37_addr); break;
+                  case 38: c = id(soilv38); s = id(soilv38_addr); break;
+                  case 39: c = id(soilv39); s = id(soilv39_addr); break;
+                  default: break;
+                }
+                id(soil_verify_sensor) = s;
+                if (s != nullptr) {
+                  s->publish_state(NAN);
+                  c->update();
+                }
+            - wait_until:
+                condition:
+                  lambda: 'return id(soil_verify_sensor) == nullptr || !isnan(id(soil_verify_sensor)->state);'
+                timeout: 20s
+            - lambda: |-
+                int target = id(soil_verify_target);
+                esphome::sensor::Sensor *s = id(soil_verify_sensor);
+                float got = s == nullptr ? NAN : s->state;
+                id(soil_verify_target) = 0;
+                id(soil_verify_sensor) = nullptr;
+                if (isnan(got) || (int) got != target) {
+                  ESP_LOGE("bus", "soil_commission: NOT verified: ID %d read back %f (no answer: the write may have failed, or the sensor needs a power cycle). soil_next_id stays %d", target, got, target);
+                  return;
+                }
+                ESP_LOGI("bus", "soil_commission: verified: the sensor answers on ID %d", target);
+                if (target < 39) {
+                  auto call = id(soil_next_id).make_call();
+                  call.set_value(target + 1);
+                  call.perform();
+                }
   - id: tuf2_set_clock_script
     mode: single
     then:
